@@ -92,6 +92,7 @@ async def execute_pipeline(
     _cleanup_stale_entries()
     _engines[run_id] = engine
     _execution_status[run_id] = {
+        "session_id": body.session_id,
         "run_id": run_id,
         "status": "running",
         "nodes": {n.node_id: n.status.value for n in exec_nodes},
