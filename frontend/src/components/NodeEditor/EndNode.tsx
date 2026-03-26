@@ -13,7 +13,7 @@ function EndNode({ selected }: NodeProps<Node<FlowNodeData>>) {
       </div>
       <div className="end-node__body">
         <div className="end-node__inputs">
-          {['image', 'vector', 'gcode', 'other'].map((name) => (
+          {['image', 'vector', 'gcode', 'path', 'text', 'other'].map((name) => (
             <div key={name} className="end-node__port">
               <Handle
                 type="target"

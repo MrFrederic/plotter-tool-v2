@@ -3,6 +3,7 @@ import './PreviewWindow.css';
 import RasterViewer from './RasterViewer';
 import VectorViewer from './VectorViewer';
 import GCodeViewer from './GCodeViewer';
+import TextViewer from './TextViewer';
 import GlitchText from '../common/GlitchText';
 
 interface PreviewWindowProps {
@@ -120,6 +121,12 @@ export default function PreviewWindow({
               {resolvedType === 'gcode' && (
                 <GCodeViewer data={String(resultData.gcode ?? '')} />
               )}
+              {resolvedType === 'text' && (
+                <TextViewer data={resultData.text ?? resultData} />
+              )}
+              {resolvedType === 'vector' && (
+                <TextViewer data={resultData.vector ?? resultData} />
+              )}
               {resolvedType === 'unknown' && (
                 <div className="preview-window__raw">
                   <pre>{JSON.stringify(resultData, null, 2)}</pre>
@@ -148,5 +155,7 @@ function detectOutputType(data: Record<string, unknown> | null | undefined): str
   if ('image' in data) return 'image';
   if ('paths' in data) return 'path';
   if ('gcode' in data) return 'gcode';
+  if ('text' in data) return 'text';
+  if ('vector' in data) return 'vector';
   return 'unknown';
 }

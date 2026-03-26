@@ -24,7 +24,7 @@ function StartNode({ selected }: NodeProps<Node<FlowNodeData>>) {
           <span className="start-node__hint">Select node to upload file</span>
         )}
         <div className="start-node__outputs">
-          {['image', 'vector', 'gcode', 'other'].map((name) => (
+          {['image', 'vector', 'gcode', 'path', 'text', 'other'].map((name) => (
             <div key={name} className="start-node__port">
               <span className="start-node__port-label">{name}</span>
               <Handle

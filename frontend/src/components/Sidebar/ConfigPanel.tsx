@@ -3,16 +3,21 @@ import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import type { FileCategory, UploadedFile } from '../../types';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'gif']);
 const VECTOR_EXTS = new Set(['svg', 'dxf', 'ai', 'eps']);
 const GCODE_EXTS = new Set(['gcode', 'nc', 'ngc', 'tap', 'cnc']);
+const TEXT_EXTS = new Set(['txt', 'md', 'log', 'csv', 'tsv', 'xml', 'json', 'yaml', 'yml']);
 
 function categorizeFile(file: File): FileCategory {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (IMAGE_EXTS.has(ext)) return 'image';
   if (VECTOR_EXTS.has(ext)) return 'vector';
   if (GCODE_EXTS.has(ext)) return 'gcode';
+  if (TEXT_EXTS.has(ext)) return 'text';
   if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('text/')) return 'text';
   return 'other';
 }
 
@@ -131,6 +136,16 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
         });
       };
       reader.readAsDataURL(file);
+
+      // Also upload to backend
+      const formData = new FormData();
+      formData.append('file', file);
+      fetch(`${API_URL}/upload/`, {
+        method: 'POST',
+        body: formData,
+      }).catch(() => {
+        // Silent fail - file upload to backend is best-effort
+      });
     },
     [onUpload],
   );
