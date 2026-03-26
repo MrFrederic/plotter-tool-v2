@@ -143,8 +143,8 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
       fetch(`${API_URL}/upload/`, {
         method: 'POST',
         body: formData,
-      }).catch(() => {
-        // Silent fail - file upload to backend is best-effort
+      }).catch((err) => {
+        console.debug('Backend upload failed:', err);
       });
     },
     [onUpload],
