@@ -111,9 +111,32 @@ async def execute_pipeline(
             ws_manager = _get_ws_manager()
             await engine.execute(session_id, ws_manager, _get_cache())
             _execution_status[run_id]["status"] = "completed"
+            # Broadcast execution_complete to the session
+            await ws_manager.broadcast_to_session(
+                session_id,
+                {
+                    "type": "execution_complete",
+                    "run_id": run_id,
+                    "pipeline_id": str(pipeline_id),
+                    "status": "completed",
+                },
+            )
         except Exception:
             logger.exception("Pipeline execution failed (run %s)", run_id)
             _execution_status[run_id]["status"] = "error"
+            try:
+                ws_manager = _get_ws_manager()
+                await ws_manager.broadcast_to_session(
+                    session_id,
+                    {
+                        "type": "execution_complete",
+                        "run_id": run_id,
+                        "pipeline_id": str(pipeline_id),
+                        "status": "error",
+                    },
+                )
+            except Exception:
+                logger.debug("Failed to broadcast execution error")
         finally:
             # Update per-node statuses
             for nid, node in engine.nodes.items():

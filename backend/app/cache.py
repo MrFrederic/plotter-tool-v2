@@ -1,6 +1,7 @@
 """File-system cache for pipeline execution results."""
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ class FileSystemCache:
 
     def get_path(self, hash_key: str, extension: str = ".bin") -> Path:
         """Return the filesystem path for a given hash key."""
+        if not re.fullmatch(r"[0-9a-fA-F]+", hash_key):
+            raise ValueError(f"Invalid hash key: {hash_key!r}")
         return self._base_dir / f"{hash_key}{extension}"
 
     # ── binary data ───────────────────────────────────────────────────────

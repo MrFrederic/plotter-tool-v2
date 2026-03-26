@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     CACHE_DIR: str = "/cache"
     CORS_ORIGINS: list[str] = ["*"]
 
-    model_config = {"env_prefix": "PLOTTER_"}
+    model_config = {"env_prefix": ""}
 
 
 settings = Settings()

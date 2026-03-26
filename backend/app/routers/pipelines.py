@@ -64,6 +64,20 @@ async def create_pipeline(
     return await _get_pipeline_or_404(pipeline.id, db)
 
 
+@router.get("/", response_model=list[PipelineRead])
+async def list_pipelines(
+    project_id: UUID | None = None, db: AsyncSession = Depends(get_db)
+) -> list[Pipeline]:
+    stmt = select(Pipeline).options(
+        selectinload(Pipeline.nodes), selectinload(Pipeline.edges)
+    )
+    if project_id is not None:
+        stmt = stmt.where(Pipeline.project_id == project_id)
+    stmt = stmt.order_by(Pipeline.created_at.desc())
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 @router.get("/{pipeline_id}", response_model=PipelineRead)
 async def get_pipeline(
     pipeline_id: UUID, db: AsyncSession = Depends(get_db)
@@ -84,35 +98,53 @@ async def update_pipeline(
     if payload.description is not None:
         pipeline.description = payload.description
 
-    # Full replace: delete existing nodes and edges, then recreate.
-    for edge in list(pipeline.edges):
-        await db.delete(edge)
-    for node in list(pipeline.nodes):
-        await db.delete(node)
-    await db.flush()
-
-    for node_data in payload.nodes:
-        node = NodeInstance(
-            pipeline_id=pipeline.id,
-            plugin_name=node_data.plugin_name,
-            pos_x=node_data.pos_x,
-            pos_y=node_data.pos_y,
-            params=node_data.params,
-        )
-        db.add(node)
+    # Only replace nodes/edges if explicitly provided
+    if payload.nodes is not None:
+        for edge in list(pipeline.edges):
+            await db.delete(edge)
+        for node in list(pipeline.nodes):
+            await db.delete(node)
         await db.flush()
 
-    for edge_data in payload.edges:
-        edge = Edge(
-            pipeline_id=pipeline.id,
-            source_node_id=edge_data.source_node_id,
-            source_output=edge_data.source_output,
-            target_node_id=edge_data.target_node_id,
-            target_input=edge_data.target_input,
-        )
-        db.add(edge)
+        for node_data in payload.nodes:
+            node = NodeInstance(
+                pipeline_id=pipeline.id,
+                plugin_name=node_data.plugin_name,
+                pos_x=node_data.pos_x,
+                pos_y=node_data.pos_y,
+                params=node_data.params,
+            )
+            db.add(node)
+            await db.flush()
 
-    await db.flush()
+        if payload.edges is not None:
+            for edge_data in payload.edges:
+                edge = Edge(
+                    pipeline_id=pipeline.id,
+                    source_node_id=edge_data.source_node_id,
+                    source_output=edge_data.source_output,
+                    target_node_id=edge_data.target_node_id,
+                    target_input=edge_data.target_input,
+                )
+                db.add(edge)
+
+        await db.flush()
+    elif payload.edges is not None:
+        for edge in list(pipeline.edges):
+            await db.delete(edge)
+        await db.flush()
+
+        for edge_data in payload.edges:
+            edge = Edge(
+                pipeline_id=pipeline.id,
+                source_node_id=edge_data.source_node_id,
+                source_output=edge_data.source_output,
+                target_node_id=edge_data.target_node_id,
+                target_input=edge_data.target_input,
+            )
+            db.add(edge)
+
+        await db.flush()
     return await _get_pipeline_or_404(pipeline.id, db)
 
 

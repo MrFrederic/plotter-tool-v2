@@ -46,6 +46,7 @@ class ProjectRead(BaseModel):
 # ── Pipeline ──────────────────────────────────────────────────────────────────
 
 class NodeInstanceCreate(BaseModel):
+    id: str | None = None  # Optional client-provided identifier
     plugin_name: str
     pos_x: float = 0.0
     pos_y: float = 0.0
@@ -93,8 +94,8 @@ class PipelineCreate(BaseModel):
 class PipelineUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    nodes: list[NodeInstanceCreate] = []
-    edges: list[EdgeCreate] = []
+    nodes: list[NodeInstanceCreate] | None = None
+    edges: list[EdgeCreate] | None = None
 
 
 class PipelineRead(BaseModel):

@@ -26,5 +26,12 @@ class ConnectionManager:
     async def broadcast_to_session(
         self, session_id: str, data: dict[str, Any]
     ) -> None:
+        broken: list[WebSocket] = []
         for connection in self.active_connections.get(session_id, []):
-            await connection.send_json(data)
+            try:
+                await connection.send_json(data)
+            except Exception:
+                broken.append(connection)
+        # Clean up broken connections
+        for conn in broken:
+            self.disconnect(session_id, conn)
