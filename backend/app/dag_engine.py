@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Any
 
 from app.cache import FileSystemCache
-from app.plugin_base import BasePlugin
+from app.plugin_base import BasePlugin, PortType
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,11 @@ class DAGEngine:
         self,
         nodes: list[ExecutionNode],
         plugin_registry: dict[str, type[BasePlugin]],
+        edges: list[tuple[str, str, str, str]] | None = None,  # (src_node, src_port, tgt_node, tgt_port)
     ) -> None:
         self.nodes: dict[str, ExecutionNode] = {n.node_id: n for n in nodes}
         self.plugin_registry = plugin_registry
+        self._edges = edges or []
         # adjacency: node_id → set of downstream node_ids
         self._adj: dict[str, set[str]] = defaultdict(set)
         # reverse adjacency: node_id → set of upstream node_ids
@@ -115,6 +117,53 @@ class DAGEngine:
                     errors.append(
                         f"Node '{node.node_id}' input '{port}' references "
                         f"missing node '{src_id}'"
+                    )
+
+        # Check for self-connections
+        for node in self.nodes.values():
+            for port, (src_id, _) in node.inputs.items():
+                if src_id == node.node_id:
+                    errors.append(
+                        f"Node '{node.node_id}' has a self-connection on input '{port}'"
+                    )
+
+        # Check for multiple connections to the same input port
+        target_inputs: dict[tuple[str, str], list[str]] = {}  # (target_node, target_port) → [source descriptions]
+        for src_node, src_port, tgt_node, tgt_port in self._edges:
+            key = (tgt_node, tgt_port)
+            target_inputs.setdefault(key, []).append(f"{src_node}.{src_port}")
+        for (tgt_node, tgt_port), sources in target_inputs.items():
+            if len(sources) > 1:
+                errors.append(
+                    f"Input '{tgt_port}' of node '{tgt_node}' has multiple "
+                    f"incoming connections"
+                )
+
+        # Check port type compatibility
+        for src_node_id, src_port, tgt_node_id, tgt_port in self._edges:
+            src_node = self.nodes.get(src_node_id)
+            tgt_node = self.nodes.get(tgt_node_id)
+            if src_node is None or tgt_node is None:
+                continue  # Already caught by missing-node check
+            src_cls = self.plugin_registry.get(src_node.plugin_name)
+            tgt_cls = self.plugin_registry.get(tgt_node.plugin_name)
+            if src_cls is None or tgt_cls is None:
+                continue  # Already caught by unknown-plugin check
+            src_schema = src_cls.schema()
+            tgt_schema = tgt_cls.schema()
+            src_output = next((p for p in src_schema.outputs if p.name == src_port), None)
+            tgt_input = next((p for p in tgt_schema.inputs if p.name == tgt_port), None)
+            if src_output and tgt_input:
+                if (
+                    src_output.type != tgt_input.type
+                    and src_output.type != PortType.OTHER
+                    and tgt_input.type != PortType.OTHER
+                ):
+                    errors.append(
+                        f"Type mismatch: output '{src_port}' of node "
+                        f"'{src_node_id}' ({src_output.type.value}) is not "
+                        f"compatible with input '{tgt_port}' of node "
+                        f"'{tgt_node_id}' ({tgt_input.type.value})"
                     )
 
         # Cycle detection

@@ -215,32 +215,37 @@ const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   onConnect: (connection) => {
-    // 1. Prevent self-connections
+    // Prevent self-connections
     if (connection.source === connection.target) return;
 
-    const currentEdges = get().edges;
-
-    // 2. Enforce single connection per input: remove any existing edge
-    //    going into the same target + targetHandle
-    const filtered = currentEdges.filter(
-      (e) =>
-        !(
-          e.target === connection.target &&
-          e.targetHandle === connection.targetHandle
-        ),
+    // Prevent multiple incoming connections to the same input port
+    const existingEdge = get().edges.find(
+      (e) => e.target === connection.target && e.targetHandle === connection.targetHandle,
     );
+    if (existingEdge) return;
 
-    // 3. Build new edge with custom type
-    const newEdge: Edge = {
-      id: `e_${connection.source}_${connection.sourceHandle ?? 'out'}-${connection.target}_${connection.targetHandle ?? 'in'}_${Date.now()}`,
-      source: connection.source!,
-      target: connection.target!,
-      sourceHandle: connection.sourceHandle,
-      targetHandle: connection.targetHandle,
-      type: 'custom',
-    };
+    // Port type compatibility check
+    const sourceNode = get().nodes.find((n) => n.id === connection.source);
+    const targetNode = get().nodes.find((n) => n.id === connection.target);
+    if (sourceNode && targetNode) {
+      const sourcePort = sourceNode.data.outputs.find(
+        (p) => p.name === connection.sourceHandle,
+      );
+      const targetPort = targetNode.data.inputs.find(
+        (p) => p.name === connection.targetHandle,
+      );
+      if (
+        sourcePort &&
+        targetPort &&
+        sourcePort.type !== targetPort.type &&
+        sourcePort.type !== 'other' &&
+        targetPort.type !== 'other'
+      ) {
+        return;
+      }
+    }
 
-    set({ edges: [...filtered, newEdge] });
+    set({ edges: addEdge({ ...connection, type: 'custom' }, get().edges) });
   },
 
   addNode: (pluginName, position) => {
