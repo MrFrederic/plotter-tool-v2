@@ -49,3 +49,13 @@ export interface PipelineEdge {
   target_node_id: string;
   target_input: string;
 }
+
+export type FileCategory = 'image' | 'vector' | 'gcode' | 'other';
+
+export interface UploadedFile {
+  name: string;
+  size: number;
+  type: string;
+  category: FileCategory;
+  dataUrl: string;
+}

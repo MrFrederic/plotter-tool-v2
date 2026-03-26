@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { FlowNodeData } from '../../store/useFlowStore';
+import useFlowStore from '../../store/useFlowStore';
 import './CustomNode.css';
 
 const statusColorVars: Record<string, string> = {
@@ -12,9 +13,10 @@ const statusColorVars: Record<string, string> = {
   ERROR: 'var(--danger)',
 };
 
-function CustomNode({ data, selected }: NodeProps<Node<FlowNodeData>>) {
+function CustomNode({ id, data, selected }: NodeProps<Node<FlowNodeData>>) {
   const statusColor = statusColorVars[data.status] || statusColorVars.IDLE;
   const paramCount = Object.keys(data.params).length;
+  const errorMsg = useFlowStore((s) => s.nodeErrors[id]);
 
   return (
     <div
@@ -69,6 +71,13 @@ function CustomNode({ data, selected }: NodeProps<Node<FlowNodeData>>) {
       {data.status === 'RUNNING' && (
         <div className="custom-node__progress-bar">
           <div className="custom-node__progress-fill" />
+        </div>
+      )}
+
+      {data.status === 'ERROR' && errorMsg && (
+        <div className="custom-node__error-bar">
+          <span className="custom-node__error-icon">⚠</span>
+          <span className="custom-node__error-text">{errorMsg}</span>
         </div>
       )}
     </div>

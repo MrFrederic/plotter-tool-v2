@@ -44,7 +44,7 @@ export default function TelemetryPanel() {
         {telemetryLog.map((msg, i) => (
           <div
             key={`${msg.timestamp}_${msg.node_id}_${i}`}
-            className="telemetry-panel__entry"
+            className={`telemetry-panel__entry ${msg.status === 'ERROR' ? 'telemetry-panel__entry--error' : ''}`}
             data-status={msg.status}
           >
             <span className="telemetry-panel__timestamp">
