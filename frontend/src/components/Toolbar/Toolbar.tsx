@@ -5,7 +5,7 @@ import usePipelineStore from '../../store/usePipelineStore';
 import { executePipeline, savePipeline } from '../../api/rest';
 import GlitchText from '../common/GlitchText';
 
-const SPECIAL_IDS = new Set([START_NODE_ID, END_NODE_ID]);
+const EXCLUDED_IDS = new Set([END_NODE_ID]);
 
 export default function Toolbar() {
   const nodes = useFlowStore((s) => s.nodes);
@@ -19,8 +19,10 @@ export default function Toolbar() {
   const projectId = usePipelineStore((s) => s.projectId);
   const setCurrentPipeline = usePipelineStore((s) => s.setCurrentPipeline);
 
-  // Count only processing nodes (not start/end)
-  const processNodeCount = nodes.filter((n) => !SPECIAL_IDS.has(n.id)).length;
+  // Count only processing nodes (not start/end) for display
+  const processNodeCount = nodes.filter(
+    (n) => n.id !== START_NODE_ID && n.id !== END_NODE_ID,
+  ).length;
 
   const handleExecute = useCallback(async () => {
     if (isExecuting || processNodeCount === 0) return;
@@ -29,11 +31,9 @@ export default function Toolbar() {
       setExecuting(true);
       clearTelemetry();
 
-      // Filter out start/end nodes — they are frontend-only
-      const syncNodes = nodes.filter((n) => !SPECIAL_IDS.has(n.id));
-      const syncEdges = edges.filter(
-        (e) => !SPECIAL_IDS.has(e.source) && !SPECIAL_IDS.has(e.target),
-      );
+      // Only filter out the End node — Start is now a real backend plugin
+      const syncNodes = nodes.filter((n) => !EXCLUDED_IDS.has(n.id));
+      const syncEdges = edges.filter((e) => !EXCLUDED_IDS.has(e.target));
 
       const pipelineData: Record<string, unknown> = {
         id: currentPipelineId,

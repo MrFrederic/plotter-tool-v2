@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
-import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../store/useFlowStore';
+import useFlowStore, { END_NODE_ID } from '../store/useFlowStore';
 import type { WebSocketManager } from '../api/websocket';
-
-const SPECIAL_IDS = new Set([START_NODE_ID, END_NODE_ID]);
 
 /**
  * Debounced (500 ms) sync of the current pipeline state to the backend
@@ -20,11 +18,9 @@ export function usePipelineSync(
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    // Filter out special start/end nodes — they are frontend-only
-    const syncNodes = nodes.filter((n) => !SPECIAL_IDS.has(n.id));
-    const syncEdges = edges.filter(
-      (e) => !SPECIAL_IDS.has(e.source) && !SPECIAL_IDS.has(e.target),
-    );
+    // Filter out the End node — it's frontend-only. Start node is now synced to backend.
+    const syncNodes = nodes.filter((n) => n.id !== END_NODE_ID);
+    const syncEdges = edges.filter((e) => e.target !== END_NODE_ID);
 
     if (syncNodes.length === 0 && syncEdges.length === 0) {
       pendingStateRef.current = null;

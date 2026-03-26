@@ -128,14 +128,6 @@ interface FlowState {
 
 const FALLBACK_PLUGINS: PluginSchema[] = [
   {
-    name: 'Image Loader',
-    category: 'Input',
-    description: 'Load an image file from disk',
-    inputs: [],
-    outputs: [{ name: 'image', type: 'image' }],
-    parameters: [{ name: 'file_path', type: 'string', default: '' }],
-  },
-  {
     name: 'SVG Trace',
     category: 'Processing',
     description: 'Convert raster image to vector paths',
@@ -377,7 +369,8 @@ const useFlowStore = create<FlowState>((set, get) => ({
   loadPluginSchemas: async () => {
     try {
       const schemas = await fetchPlugins();
-      set({ pluginSchemas: schemas });
+      // Filter out Flow category plugins (Pipeline Input is handled by Start node)
+      set({ pluginSchemas: schemas.filter((s) => s.category !== 'Flow') });
     } catch {
       if (get().pluginSchemas.length === 0) {
         set({ pluginSchemas: FALLBACK_PLUGINS });

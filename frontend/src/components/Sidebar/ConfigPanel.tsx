@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
+import { uploadFile } from '../../api/rest';
 import type { FileCategory, UploadedFile } from '../../types';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'gif']);
 const VECTOR_EXTS = new Set(['svg', 'dxf', 'ai', 'eps']);
@@ -121,6 +120,7 @@ interface FileUploadAreaProps {
 function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const updateNodeParams = useFlowStore((s) => s.updateNodeParams);
 
   const processFile = useCallback(
     (file: File) => {
@@ -137,17 +137,20 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
       };
       reader.readAsDataURL(file);
 
-      // Also upload to backend
-      const formData = new FormData();
-      formData.append('file', file);
-      fetch(`${API_URL}/upload/`, {
-        method: 'POST',
-        body: formData,
-      }).catch((err) => {
-        console.debug(`Backend upload failed for "${file.name}":`, err);
-      });
+      // Upload to backend and store path in Start node params
+      const category = categorizeFile(file);
+      uploadFile(file)
+        .then((data) => {
+          updateNodeParams(START_NODE_ID, {
+            file_path: data.path,
+            file_category: category,
+          });
+        })
+        .catch((err) => {
+          console.debug(`Backend upload failed for "${file.name}":`, err);
+        });
     },
-    [onUpload],
+    [onUpload, updateNodeParams],
   );
 
   const handleDrop = useCallback(
