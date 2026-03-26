@@ -1,0 +1,44 @@
+.node-editor {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.node-editor .react-flow__pane {
+  cursor: crosshair;
+}
+
+.node-editor .react-flow__controls {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.node-editor .react-flow__controls-button {
+  background: var(--bg-secondary);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  fill: var(--text-dim);
+  width: 28px;
+  height: 28px;
+}
+
+.node-editor .react-flow__controls-button:hover {
+  background: var(--border-color);
+  fill: var(--accent-cyan);
+}
+
+.node-editor .react-flow__minimap {
+  border-radius: 0;
+}
+
+.node-editor .react-flow__edge-path {
+  stroke: var(--accent-cyan);
+  stroke-opacity: 0.6;
+}
+
+/* Edge flow animation */
+@keyframes edgeFlow {
+  to { stroke-dashoffset: -20; }
+}

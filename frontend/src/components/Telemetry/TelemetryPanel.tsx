@@ -1,0 +1,72 @@
+import { useEffect, useRef } from 'react';
+import './TelemetryPanel.css';
+import usePipelineStore from '../../store/usePipelineStore';
+
+const statusSymbol: Record<string, string> = {
+  IDLE: '○',
+  WAITING: '◌',
+  RUNNING: '▶',
+  CACHED: '◆',
+  DONE: '✓',
+  ERROR: '✗',
+};
+
+export default function TelemetryPanel() {
+  const { telemetryLog, isExecuting } = usePipelineStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [telemetryLog]);
+
+  return (
+    <div className="telemetry-panel">
+      <div className="telemetry-panel__header">
+        <span className="telemetry-panel__title">EXECUTION LOG</span>
+        {isExecuting && (
+          <span className="telemetry-panel__running">● PROCESSING</span>
+        )}
+        <span className="telemetry-panel__count">
+          {telemetryLog.length} entries
+        </span>
+      </div>
+
+      <div className="telemetry-panel__log" ref={scrollRef}>
+        {telemetryLog.length === 0 && (
+          <div className="telemetry-panel__empty">
+            Awaiting execution data...
+          </div>
+        )}
+
+        {telemetryLog.map((msg, i) => (
+          <div
+            key={i}
+            className="telemetry-panel__entry"
+            data-status={msg.status}
+          >
+            <span className="telemetry-panel__timestamp">
+              {msg.timestamp.split('T')[1]?.slice(0, 12) || msg.timestamp}
+            </span>
+            <span className="telemetry-panel__symbol">
+              {statusSymbol[msg.status] || '?'}
+            </span>
+            <span className="telemetry-panel__node-id">{msg.node_id}</span>
+            <span className="telemetry-panel__status">{msg.status}</span>
+            {msg.progress !== undefined && (
+              <span className="telemetry-panel__progress">
+                [{Math.round(msg.progress * 100)}%]
+              </span>
+            )}
+            {msg.message && (
+              <span className="telemetry-panel__message">{msg.message}</span>
+            )}
+          </div>
+        ))}
+
+        <span className="telemetry-panel__cursor">█</span>
+      </div>
+    </div>
+  );
+}

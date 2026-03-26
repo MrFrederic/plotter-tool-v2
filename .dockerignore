@@ -1,0 +1,31 @@
+.git
+.gitignore
+README.md
+LICENSE
+SYSTEM_REQUIREMENTS.md
+*.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+.env
+
+# Node
+node_modules
+dist
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
