@@ -1,0 +1,80 @@
+.toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px;
+  background: rgba(13, 13, 20, 0.85);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  pointer-events: auto;
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar__label {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.toolbar__separator {
+  color: var(--text-dim);
+}
+
+.toolbar__node-count {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.toolbar__btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 5px 16px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar__btn:hover:not(:disabled) {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--border-glow);
+}
+
+.toolbar__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar__btn--execute {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.toolbar__btn--execute:hover:not(:disabled) {
+  border-color: var(--success);
+  color: var(--success);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+}
+
+.toolbar__btn--active {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}

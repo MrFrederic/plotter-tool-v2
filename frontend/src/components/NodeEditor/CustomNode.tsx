@@ -15,18 +15,25 @@ const statusColors: Record<string, string> = {
 function CustomNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as FlowNodeData;
   const statusColor = statusColors[nodeData.status] || statusColors.IDLE;
+  const paramCount = Object.keys(nodeData.params).length;
 
   return (
     <div
-      className={`custom-node ${selected ? 'custom-node--selected' : ''}`}
+      className={`custom-node custom-node--status-${nodeData.status.toLowerCase()} ${selected ? 'custom-node--selected' : ''}`}
       style={{ '--status-color': statusColor } as React.CSSProperties}
+      data-status={nodeData.status}
     >
+      <div className="custom-node__status-bar" />
+
       <div className="custom-node__header">
         <span
           className="custom-node__status-dot"
           style={{ background: statusColor }}
         />
         <span className="custom-node__title">{nodeData.label}</span>
+        {paramCount > 0 && (
+          <span className="custom-node__param-badge">{paramCount}</span>
+        )}
         <span className="custom-node__category">{nodeData.category}</span>
       </div>
 

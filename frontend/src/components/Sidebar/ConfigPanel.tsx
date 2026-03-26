@@ -82,7 +82,7 @@ function ParameterField({
     (val: unknown) => {
       setLocalValue(val);
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => onChange(val), 150);
+      debounceRef.current = setTimeout(() => onChange(val), 300);
     },
     [onChange],
   );

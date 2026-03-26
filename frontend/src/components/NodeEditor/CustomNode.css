@@ -5,12 +5,56 @@
   font-family: var(--font-mono);
   font-size: 11px;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .custom-node--selected {
   border-color: var(--accent-cyan);
   box-shadow: 0 0 12px var(--border-glow), inset 0 0 12px rgba(0, 240, 255, 0.05);
+}
+
+/* Status-based node styling */
+.custom-node--status-running {
+  border-color: var(--accent-amber);
+  animation: pulsingNodeBorder 1.5s ease-in-out infinite;
+}
+
+.custom-node--status-waiting {
+  border-color: var(--accent-amber);
+  animation: pulsingNodeBorder 2s ease-in-out infinite;
+}
+
+.custom-node--status-done {
+  border-color: var(--success);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+}
+
+.custom-node--status-error {
+  border-color: var(--danger);
+  animation: shakeNode 0.4s ease-in-out;
+  box-shadow: 0 0 12px rgba(255, 51, 102, 0.3);
+}
+
+.custom-node--status-cached {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+}
+
+@keyframes pulsingNodeBorder {
+  0%, 100% { box-shadow: 0 0 4px var(--status-color); }
+  50% { box-shadow: 0 0 16px var(--status-color), 0 0 24px var(--status-color); }
+}
+
+@keyframes shakeNode {
+  0%, 100% { transform: translateX(0); }
+  15%, 55%, 85% { transform: translateX(-2px); }
+  35%, 70% { transform: translateX(2px); }
+}
+
+.custom-node__status-bar {
+  height: 2px;
+  background: var(--status-color);
+  box-shadow: 0 0 6px var(--status-color);
 }
 
 .custom-node__header {
@@ -40,6 +84,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.custom-node__param-badge {
+  background: var(--border-color);
+  color: var(--text-dim);
+  font-size: 9px;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 .custom-node__category {
@@ -86,6 +141,7 @@
   border-radius: 0 !important;
   border: 1px solid var(--accent-cyan) !important;
   background: var(--bg-primary) !important;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
 .custom-node__handle:hover {

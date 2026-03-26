@@ -11,18 +11,21 @@ import './NodeEditor.css';
 import CustomNode from './CustomNode';
 import CustomEdge from './CustomEdge';
 import useFlowStore from '../../store/useFlowStore';
-import type { PluginSchema } from '../../types';
+
+interface FlowInstance {
+  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
+}
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
 
 export default function NodeEditor() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const reactFlowRef = useRef<{ screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number } } | null>(null);
+  const reactFlowRef = useRef<FlowInstance | null>(null);
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectNode } =
     useFlowStore();
 
-  const onInit = useCallback((instance: { screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number } }) => {
+  const onInit = useCallback((instance: FlowInstance) => {
     reactFlowRef.current = instance;
   }, []);
 
@@ -34,19 +37,15 @@ export default function NodeEditor() {
   const onDrop = useCallback(
     (event: DragEvent) => {
       event.preventDefault();
-      const pluginData = event.dataTransfer.getData('application/plotter-plugin');
-      if (!pluginData || !reactFlowRef.current) return;
-
-      const plugin = JSON.parse(pluginData) as PluginSchema;
-      const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-      if (!bounds) return;
+      const pluginName = event.dataTransfer.getData('application/plotter-plugin');
+      if (!pluginName || !reactFlowRef.current) return;
 
       const position = reactFlowRef.current.screenToFlowPosition({
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
+        x: event.clientX,
+        y: event.clientY,
       });
 
-      addNode(plugin, position);
+      addNode(pluginName, position);
     },
     [addNode],
   );
@@ -79,7 +78,7 @@ export default function NodeEditor() {
         edgeTypes={edgeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: 'custom' }}
+        defaultEdgeOptions={{ type: 'custom', animated: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1a1a2e" />
         <MiniMap
