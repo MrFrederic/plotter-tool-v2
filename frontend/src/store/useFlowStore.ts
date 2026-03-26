@@ -7,6 +7,7 @@ import {
   type OnConnect,
   applyNodeChanges,
   applyEdgeChanges,
+  addEdge,
   type NodeChange,
 } from '@xyflow/react';
 import type { NodeStatus, PluginSchema, UploadedFile } from '../types';
@@ -37,7 +38,7 @@ const START_SCHEMA: PluginSchema = {
     { name: 'image', type: 'image' },
     { name: 'vector', type: 'path' },
     { name: 'gcode', type: 'gcode' },
-    { name: 'other', type: 'any' },
+    { name: 'other', type: 'other' },
   ],
   parameters: [],
 };
@@ -50,7 +51,7 @@ const END_SCHEMA: PluginSchema = {
     { name: 'image', type: 'image' },
     { name: 'vector', type: 'path' },
     { name: 'gcode', type: 'gcode' },
-    { name: 'other', type: 'any' },
+    { name: 'other', type: 'other' },
   ],
   outputs: [],
   parameters: [],
