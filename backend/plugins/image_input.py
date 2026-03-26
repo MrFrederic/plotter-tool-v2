@@ -1,9 +1,11 @@
 """ImageInput plugin – loads an image from a file path."""
+from pathlib import Path
 from typing import Any
 
 import cv2
-import numpy as np
 
+from app.config import settings
+from app.image_utils import encode_image
 from app.plugin_base import (
     BasePlugin,
     ParameterDefinition,
@@ -11,6 +13,8 @@ from app.plugin_base import (
     PortDefinition,
     PortType,
 )
+
+ALLOWED_BASE = Path(settings.CACHE_DIR).resolve()
 
 
 class ImageInput(BasePlugin):
@@ -29,7 +33,7 @@ class ImageInput(BasePlugin):
                     name="file_path",
                     type="string",
                     default="",
-                    description="Absolute or relative path to the image file",
+                    description="Relative path to the image file within the uploads directory",
                 ),
             ],
         )
@@ -39,17 +43,17 @@ class ImageInput(BasePlugin):
         if not file_path:
             raise ValueError("file_path parameter is required")
 
-        # Resolve to an absolute path and block directory traversal via ".."
-        from pathlib import Path
         resolved = Path(file_path).resolve()
-        if ".." in Path(file_path).parts:
-            raise ValueError("Directory traversal is not allowed in file_path")
+        if not resolved.is_relative_to(ALLOWED_BASE):
+            raise ValueError(
+                "file_path must be within the allowed uploads directory"
+            )
 
         img = cv2.imread(str(resolved), cv2.IMREAD_COLOR)
         if img is None:
             raise FileNotFoundError(f"Could not load image at '{resolved}'")
 
-        return {"image": img.tolist()}
+        return {"image": encode_image(img)}
 
 
 Plugin = ImageInput

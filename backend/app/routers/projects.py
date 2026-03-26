@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Project
+from app.models import Project, User
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -15,6 +15,10 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 async def create_project(
     payload: ProjectCreate, db: AsyncSession = Depends(get_db)
 ) -> Project:
+    user = await db.get(User, payload.user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
     project = Project(
         user_id=payload.user_id,
         name=payload.name,

@@ -89,8 +89,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     plugins.register_plugins(legacy, classes)
     logger.info("Discovered %d plugin(s)", len(legacy) + len(classes))
 
+    manager.start_heartbeat()
+
     yield
-    # Shutdown (cleanup can go here)
+    # Shutdown
+    manager.stop_heartbeat()
 
 
 app = FastAPI(title="Plotter Tool", version="0.1.0", lifespan=lifespan)
@@ -130,3 +133,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
             )
     except WebSocketDisconnect:
         manager.disconnect(session_id, websocket)
+    except Exception:
+        logger.warning("WebSocket error for session %s", session_id, exc_info=True)
+        manager.disconnect(session_id, websocket)
+        try:
+            await websocket.close()
+        except Exception:
+            pass

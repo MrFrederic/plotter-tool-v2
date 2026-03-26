@@ -6,7 +6,7 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://plotter:plotter_dev@db:5432/plotter_tool"
     )
     CACHE_DIR: str = "/cache"
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     model_config = {"env_prefix": ""}
 

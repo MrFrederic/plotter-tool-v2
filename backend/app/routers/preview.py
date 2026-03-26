@@ -6,21 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
-from app.cache import FileSystemCache
-from app.config import settings
+from app.cache import get_shared_cache
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/preview", tags=["preview"])
-
-_cache: FileSystemCache | None = None
-
-
-def _get_cache() -> FileSystemCache:
-    global _cache
-    if _cache is None:
-        _cache = FileSystemCache(settings.CACHE_DIR)
-    return _cache
 
 
 @router.get("/{pipeline_id}/{node_id}")
@@ -32,7 +22,7 @@ async def get_node_result(pipeline_id: UUID, node_id: str) -> dict[str, Any]:
     """
     from app.routers.execution import _engines, _execution_status
 
-    cache = _get_cache()
+    cache = get_shared_cache()
     result_hash: str | None = None
 
     # Search execution records for this pipeline to find the node's result hash
@@ -52,7 +42,7 @@ async def get_node_result(pipeline_id: UUID, node_id: str) -> dict[str, Any]:
             detail=f"No cached result for node '{node_id}' in pipeline '{pipeline_id}'",
         )
 
-    data = cache.retrieve_json(result_hash)
+    data = await cache.retrieve_json(result_hash)
     if data is None:
         raise HTTPException(
             status_code=404,
@@ -65,8 +55,8 @@ async def get_node_result(pipeline_id: UUID, node_id: str) -> dict[str, Any]:
 @router.get("/cache/{hash_key}")
 async def get_cached_file(hash_key: str, ext: str = ".bin") -> Response:
     """Return a raw cached binary file by its content hash."""
-    cache = _get_cache()
-    raw = cache.retrieve(hash_key, extension=ext)
+    cache = get_shared_cache()
+    raw = await cache.retrieve(hash_key, extension=ext)
     if raw is None:
         raise HTTPException(status_code=404, detail="Cached file not found")
 

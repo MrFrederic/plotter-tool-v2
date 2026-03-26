@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -8,8 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.cache import FileSystemCache
-from app.config import settings
+from app.cache import get_shared_cache
 from app.dag_engine import DAGEngine, ExecutionNode
 from app.database import get_db
 from app.models import Edge, NodeInstance, Pipeline
@@ -23,15 +23,22 @@ router = APIRouter(prefix="/execute", tags=["execution"])
 _execution_status: dict[str, dict[str, Any]] = {}
 _engines: dict[str, DAGEngine] = {}
 
-_cache: FileSystemCache | None = None
+# Keep references to background tasks so they aren't garbage-collected.
+_background_tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
+
+_STATUS_TTL_SECONDS: float = 30 * 60  # 30 minutes
 
 
-def _get_cache() -> FileSystemCache:
-    """Lazily create the cache so we don't hit the filesystem at import time."""
-    global _cache
-    if _cache is None:
-        _cache = FileSystemCache(settings.CACHE_DIR)
-    return _cache
+def _cleanup_stale_entries() -> None:
+    """Remove execution status / engine entries older than the TTL."""
+    cutoff = time.monotonic() - _STATUS_TTL_SECONDS
+    stale = [
+        rid for rid, status in _execution_status.items()
+        if status.get("_created_at", 0) < cutoff
+    ]
+    for rid in stale:
+        _execution_status.pop(rid, None)
+        _engines.pop(rid, None)
 
 
 def _get_ws_manager() -> Any:
@@ -96,12 +103,14 @@ async def execute_pipeline(
         raise HTTPException(status_code=400, detail={"validation_errors": errors})
 
     run_id = engine.run_id
+    _cleanup_stale_entries()
     _engines[run_id] = engine
     _execution_status[run_id] = {
         "pipeline_id": str(pipeline_id),
         "run_id": run_id,
         "status": "running",
         "nodes": {n.node_id: n.status.value for n in exec_nodes},
+        "_created_at": time.monotonic(),
     }
 
     session_id = str(pipeline_id)
@@ -109,7 +118,7 @@ async def execute_pipeline(
     async def _run() -> None:
         try:
             ws_manager = _get_ws_manager()
-            await engine.execute(session_id, ws_manager, _get_cache())
+            await engine.execute(session_id, ws_manager, get_shared_cache())
             _execution_status[run_id]["status"] = "completed"
             # Broadcast execution_complete to the session
             await ws_manager.broadcast_to_session(
@@ -142,7 +151,9 @@ async def execute_pipeline(
             for nid, node in engine.nodes.items():
                 _execution_status[run_id]["nodes"][nid] = node.status.value
 
-    asyncio.create_task(_run())
+    task = asyncio.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return {"pipeline_id": str(pipeline_id), "run_id": run_id, "status": "running"}
 
