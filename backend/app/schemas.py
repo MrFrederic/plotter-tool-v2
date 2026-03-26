@@ -62,13 +62,14 @@ class NodeInstanceRead(BaseModel):
     pos_x: float
     pos_y: float
     params: dict[str, Any] | None = None
+    client_id: str | None = None
     created_at: datetime
 
 
 class EdgeCreate(BaseModel):
-    source_node_id: UUID
+    source_node_id: str
     source_output: str
-    target_node_id: UUID
+    target_node_id: str
     target_input: str
 
 
@@ -109,3 +110,9 @@ class PipelineRead(BaseModel):
     updated_at: datetime
     nodes: list[NodeInstanceRead] = []
     edges: list[EdgeRead] = []
+
+
+# ── Execution ─────────────────────────────────────────────────────────────────
+
+class ExecutionRequest(BaseModel):
+    session_id: str | None = None
