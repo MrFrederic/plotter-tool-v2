@@ -1,20 +1,32 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import './PreviewWindow.css';
+import RasterViewer from './RasterViewer';
+import VectorViewer from './VectorViewer';
+import GCodeViewer from './GCodeViewer';
 
 interface PreviewWindowProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
-  imageUrl?: string;
+  nodeId?: string | null;
+  outputType?: string;
+  resultData?: Record<string, unknown> | null;
+  loading?: boolean;
+  error?: string | null;
 }
 
 export default function PreviewWindow({
   visible,
   onClose,
   title = 'OUTPUT PREVIEW',
-  imageUrl,
+  nodeId,
+  outputType,
+  resultData,
+  loading = false,
+  error = null,
 }: PreviewWindowProps) {
   const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [minimized, setMinimized] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const onMouseDown = useCallback(
@@ -54,35 +66,87 @@ export default function PreviewWindow({
 
   if (!visible) return null;
 
+  const resolvedType = outputType || detectOutputType(resultData);
+
   return (
     <div
-      className="preview-window"
+      className={`preview-window ${minimized ? 'preview-window--minimized' : ''}`}
       style={{ left: position.x, top: position.y }}
     >
       <div className="preview-window__titlebar" onMouseDown={onMouseDown}>
-        <span className="preview-window__title">{title}</span>
-        <button className="preview-window__close" onClick={onClose}>
-          ✕
-        </button>
+        <span className="preview-window__title">
+          <span className="preview-window__title-prefix">▸ </span>
+          {title}
+          {nodeId && <span className="preview-window__node-id"> [{nodeId.slice(0, 12)}]</span>}
+        </span>
+        <div className="preview-window__controls">
+          <button
+            className="preview-window__btn preview-window__minimize"
+            onClick={() => setMinimized(!minimized)}
+            title={minimized ? 'Expand' : 'Collapse'}
+          >
+            {minimized ? '▢' : '▬'}
+          </button>
+          <button className="preview-window__btn preview-window__close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
       </div>
 
-      <div className="preview-window__content">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt="Preview output"
-            className="preview-window__image"
-          />
-        ) : (
-          <div className="preview-window__placeholder">
-            <div className="preview-window__crosshair" />
-            <span>No preview data</span>
-            <span className="preview-window__hint">
-              Execute pipeline to generate output
-            </span>
-          </div>
-        )}
-      </div>
+      {!minimized && (
+        <div className="preview-window__content">
+          {loading && (
+            <div className="preview-window__loading">
+              <div className="preview-window__spinner" />
+              <span>LOADING DATA...</span>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="preview-window__error">
+              <span className="preview-window__error-icon">⚠</span>
+              <span className="preview-window__error-text">{error}</span>
+            </div>
+          )}
+
+          {!loading && !error && resultData && (
+            <div className="preview-window__viewer">
+              {resolvedType === 'image' && (
+                <RasterViewer data={resultData.image ?? resultData} />
+              )}
+              {resolvedType === 'path' && (
+                <VectorViewer data={resultData.paths ?? resultData} />
+              )}
+              {resolvedType === 'gcode' && (
+                <GCodeViewer data={String(resultData.gcode ?? '')} />
+              )}
+              {resolvedType === 'unknown' && (
+                <div className="preview-window__raw">
+                  <pre>{JSON.stringify(resultData, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading && !error && !resultData && (
+            <div className="preview-window__placeholder">
+              <div className="preview-window__crosshair" />
+              <span>No preview data</span>
+              <span className="preview-window__hint">
+                Execute pipeline to generate output
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function detectOutputType(data: Record<string, unknown> | null | undefined): string {
+  if (!data) return 'unknown';
+  if ('image' in data) return 'image';
+  if ('paths' in data) return 'path';
+  if ('gcode' in data) return 'gcode';
+  return 'unknown';
 }

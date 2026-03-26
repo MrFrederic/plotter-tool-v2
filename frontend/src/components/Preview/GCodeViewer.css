@@ -1,0 +1,224 @@
+.gcode-viewer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gcode-viewer__tabs {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+}
+
+.gcode-viewer__tab {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gcode-viewer__tab--active {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 4px var(--border-glow);
+}
+
+.gcode-viewer__tab:hover:not(.gcode-viewer__tab--active) {
+  color: var(--text-primary);
+}
+
+.gcode-viewer__line-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+/* ── Text View ─────────────────────────────────────────────── */
+
+.gcode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gcode-text__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gcode-text__search-input {
+  flex: 1;
+  font-size: 11px;
+}
+
+.gcode-text__search-count {
+  font-size: 10px;
+  color: var(--accent-amber);
+  white-space: nowrap;
+}
+
+.gcode-text__list {
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.gcode-text__line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  border-bottom: 1px solid rgba(26, 26, 46, 0.4);
+}
+
+.gcode-text__line:hover {
+  background: rgba(0, 240, 255, 0.03);
+}
+
+.gcode-text__line-num {
+  color: var(--text-dim);
+  min-width: 44px;
+  text-align: right;
+  user-select: none;
+  font-size: 10px;
+  line-height: 1.9;
+}
+
+.gcode-text__line-content {
+  white-space: pre;
+}
+
+/* Syntax highlighting */
+.gcode-hl-cmd {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.gcode-hl-coord {
+  color: var(--success);
+}
+
+.gcode-hl-comment {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Toolpath View ─────────────────────────────────────────── */
+
+.gcode-toolpath {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gcode-toolpath__controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.gcode-toolpath__btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+  transition: border-color 0.15s;
+}
+
+.gcode-toolpath__btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.gcode-toolpath__info {
+  font-size: 10px;
+  color: var(--accent-amber);
+  margin-left: auto;
+}
+
+.gcode-toolpath__canvas-wrap {
+  position: relative;
+  min-height: 300px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.gcode-toolpath__canvas-wrap:active {
+  cursor: grabbing;
+}
+
+.gcode-toolpath__canvas {
+  width: 100%;
+  height: 300px;
+  display: block;
+}
+
+.gcode-toolpath__scrubber {
+  padding: 4px 0;
+}
+
+.gcode-toolpath__scrubber-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.gcode-toolpath__slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--border-color);
+  outline: none;
+}
+
+.gcode-toolpath__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 14px;
+  background: var(--accent-cyan);
+  cursor: pointer;
+  border: none;
+}
+
+.gcode-toolpath__step-val {
+  min-width: 60px;
+  text-align: right;
+  color: var(--accent-cyan);
+}
+
+.gcode-toolpath__legend {
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border-color);
+}
+
+.gcode-toolpath__legend-rapid {
+  color: #ff3366;
+}
+
+.gcode-toolpath__legend-feed {
+  color: #00f0ff;
+}

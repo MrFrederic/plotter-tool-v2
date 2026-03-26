@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import './App.css';
 import NodeEditor from './components/NodeEditor/NodeEditor';
 import NodeInventory from './components/Sidebar/NodeInventory';
@@ -11,6 +11,7 @@ import DecorativeOverlay from './components/common/DecorativeOverlay';
 import useFlowStore from './store/useFlowStore';
 import { useWebSocketBridge } from './hooks/useWebSocketBridge';
 import { usePipelineSync } from './hooks/usePipelineSync';
+import { fetchNodeResult } from './api/rest';
 
 function generateSessionId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -21,9 +22,52 @@ function generateSessionId(): string {
 
 export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
+  const nodes = useFlowStore((s) => s.nodes);
+  const nodeStatuses = useFlowStore((s) => s.nodeStatuses);
   const sessionId = useMemo(generateSessionId, []);
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
+
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewData, setPreviewData] = useState<Record<string, unknown> | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const selectedNode = useMemo(
+    () => nodes.find((n) => n.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
+  );
+
+  const outputType = useMemo(() => {
+    if (!selectedNode?.data?.outputs?.length) return undefined;
+    return selectedNode.data.outputs[0].type;
+  }, [selectedNode]);
+
+  const loadPreview = useCallback(async (pipelineId: string, nodeId: string) => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const result = await fetchNodeResult(pipelineId, nodeId);
+      setPreviewData(result.data as Record<string, unknown>);
+    } catch {
+      setPreviewData(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setPreviewVisible(false);
+      return;
+    }
+
+    const status = nodeStatuses[selectedNodeId];
+    if (status === 'DONE' || status === 'CACHED') {
+      setPreviewVisible(true);
+      loadPreview(sessionId, selectedNodeId);
+    }
+  }, [selectedNodeId, nodeStatuses, sessionId, loadPreview]);
 
   return (
     <>
@@ -51,8 +95,14 @@ export default function App() {
       </div>
 
       <PreviewWindow
-        visible={false}
-        onClose={() => {/* managed externally */}}
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        title="OUTPUT PREVIEW"
+        nodeId={selectedNodeId}
+        outputType={outputType}
+        resultData={previewData}
+        loading={previewLoading}
+        error={previewError}
       />
 
       <ScanlineOverlay />

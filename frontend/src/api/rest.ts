@@ -11,6 +11,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${res.statusText}`);
+  }
+  return res.blob();
+}
+
 import type { PluginSchema } from '../types';
 
 export function fetchPlugins(): Promise<PluginSchema[]> {
@@ -54,4 +62,18 @@ export function executePipeline(id: string): Promise<{ execution_id: string }> {
 
 export function fetchExecutionStatus(id: string): Promise<Record<string, unknown>> {
   return request<Record<string, unknown>>(`/execute/${encodeURIComponent(id)}/status`);
+}
+
+export function fetchNodeResult(
+  pipelineId: string,
+  nodeId: string,
+): Promise<{ node_id: string; hash: string; data: Record<string, unknown> }> {
+  return request<{ node_id: string; hash: string; data: Record<string, unknown> }>(
+    `/preview/${encodeURIComponent(pipelineId)}/${encodeURIComponent(nodeId)}`,
+  );
+}
+
+export function fetchCachedFile(hash: string, extension?: string): Promise<Blob> {
+  const ext = extension ? `?ext=${encodeURIComponent(extension)}` : '';
+  return requestBlob(`/preview/cache/${encodeURIComponent(hash)}${ext}`);
 }
