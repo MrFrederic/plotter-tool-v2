@@ -77,22 +77,25 @@ Each `PortType` has a standard internal representation used between plugins:
 
 ## Plugin Categories
 
-### Input Plugins
+### Pipeline Input (Start Node)
 
-Input plugins load data from disk and normalize it to the standard internal format. Each input plugin:
+The `Pipeline Input` plugin (`pipeline_input.py`) is a special built-in plugin that backs the **Start node** in the UI. It consolidates all file normalization logic into a single entry point. Users do not interact with it directly — the frontend configures it automatically when a file is uploaded.
 
-- Has **no input ports** (source nodes in the DAG)
-- Has a `file_path` string parameter pointing to a file in the uploads directory
+- Has **no input ports** (source node in the DAG)
+- Has `file_path` and `file_category` parameters set automatically by the upload flow
 - **Validates** that the resolved file path is within `CACHE_DIR` (path traversal protection)
-- Normalizes the file contents to the canonical internal format for its data type
+- Dispatches to category-specific normalization based on `file_category`
 
-| Plugin | Output Type | Normalization |
-|--------|------------|---------------|
-| `ImageInput` | IMAGE | Loads any image format via cv2, encodes to base64 PNG |
-| `VectorInput` | VECTOR | Reads SVG file as UTF-8 text, validates XML structure |
-| `GCodeInput` | GCODE | Reads text file, strips trailing whitespace per line, normalizes to `\n` |
-| `PathInput` | PATH | Reads JSON, validates nested `list[list[list[float]]]` structure |
-| `TextInput` | TEXT | Reads file as UTF-8 text |
+| Category | Output Port | Normalization |
+|----------|------------|---------------|
+| `image` | image | Loads any image format via cv2, encodes to base64 PNG |
+| `vector` | vector | Reads SVG file as UTF-8 text, validates XML structure |
+| `gcode` | gcode | Reads text file, strips trailing whitespace per line, normalizes to `\n` |
+| `path` | path | Reads JSON, validates nested `list[list[list[float]]]` structure |
+| `text` | text | Reads file as UTF-8 text |
+| `other` | other | Attempts JSON parse, falls back to UTF-8 decoded string |
+
+> **Note:** The five separate input plugins (`ImageInput`, `VectorInput`, `GCodeInput`, `PathInput`, `TextInput`) have been removed. Their normalization logic now lives inside `Pipeline Input`.
 
 ### Passthrough (Testing) Plugins
 
@@ -128,7 +131,7 @@ The schema tells the frontend what UI to render and the engine what connections 
 def schema(cls) -> PluginSchema:
     return PluginSchema(
         name="Brightness",          # Unique name (shown in UI)
-        category="Processing",       # Groups in sidebar: Input, Processing, Output, Testing
+        category="Processing",       # Groups in sidebar: Flow, Processing, Output, Testing
         description="Adjust image brightness.",
         inputs=[
             PortDefinition(name="image", type=PortType.IMAGE),
@@ -189,11 +192,7 @@ def compute_hash(cls, inputs_hash: dict[str, str], params: dict[str, Any]) -> st
 
 | Plugin | Category | Input | Output | Description |
 |--------|----------|-------|--------|-------------|
-| `ImageInput` | Input | — | image | Load image from file path |
-| `VectorInput` | Input | — | vector | Load SVG from file path |
-| `GCodeInput` | Input | — | gcode | Load G-code from file path |
-| `PathInput` | Input | — | paths | Load path data from JSON file |
-| `TextInput` | Input | — | text | Load text from file path |
+| `Pipeline Input` | Flow | — | image, vector, gcode, path, text, other | Start node — reads uploaded file and normalizes by category |
 | `ImagePassthrough` | Testing | image | image | Pass image data through |
 | `VectorPassthrough` | Testing | vector | vector | Pass vector data through |
 | `GCodePassthrough` | Testing | gcode | gcode | Pass G-code data through |
