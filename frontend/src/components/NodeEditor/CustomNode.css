@@ -31,8 +31,24 @@
 
 .custom-node--status-error {
   border-color: var(--danger);
-  animation: shakeNode 0.4s ease-in-out;
+  animation: shakeNode 0.4s ease-in-out, chromaticAberration 2s infinite;
   box-shadow: 0 0 12px rgba(255, 51, 102, 0.3);
+}
+
+@keyframes chromaticAberration {
+  0%, 100% {
+    text-shadow: none;
+    filter: none;
+  }
+  25% {
+    text-shadow: -1px 0 rgba(255, 0, 0, 0.5), 1px 0 rgba(0, 255, 255, 0.5);
+  }
+  50% {
+    text-shadow: 1px 0 rgba(255, 0, 0, 0.4), -1px 0 rgba(0, 255, 255, 0.4);
+  }
+  75% {
+    text-shadow: -0.5px 0 rgba(255, 0, 0, 0.6), 0.5px 0 rgba(0, 255, 255, 0.6);
+  }
 }
 
 .custom-node--status-cached {
