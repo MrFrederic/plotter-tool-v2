@@ -175,13 +175,13 @@ Drop the file into `backend/plugins/` and restart the server. It will be auto-di
 
 ## Configuration
 
-Environment variables (prefixed with `PLOTTER_`):
+Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PLOTTER_DATABASE_URL` | `postgresql+asyncpg://plotter:plotter_dev@db:5432/plotter_tool` | Database connection |
-| `PLOTTER_CACHE_DIR` | `/cache` | File system cache directory |
-| `PLOTTER_CORS_ORIGINS` | `["*"]` | Allowed CORS origins |
+| `DATABASE_URL` | `postgresql+asyncpg://plotter:plotter_dev@db:5432/plotter_tool` | Database connection |
+| `CACHE_DIR` | `/cache` | File system cache directory |
+| `CORS_ORIGINS` | `["*"]` | Allowed CORS origins |
 | `VITE_API_URL` | `http://localhost:8000` | Frontend API base URL |
 
 ## Development Setup
