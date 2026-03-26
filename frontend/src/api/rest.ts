@@ -1,3 +1,5 @@
+import type { PluginSchema } from '../types';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -18,8 +20,6 @@ async function requestBlob(path: string): Promise<Blob> {
   }
   return res.blob();
 }
-
-import type { PluginSchema } from '../types';
 
 export function fetchPlugins(): Promise<PluginSchema[]> {
   return request<PluginSchema[]>('/plugins/');
@@ -54,8 +54,8 @@ export function savePipeline(data: Record<string, unknown>): Promise<Record<stri
   });
 }
 
-export function executePipeline(id: string): Promise<{ execution_id: string }> {
-  return request<{ execution_id: string }>(`/execute/${encodeURIComponent(id)}`, {
+export function executePipeline(id: string): Promise<{ run_id: string; pipeline_id: string; status: string }> {
+  return request<{ run_id: string; pipeline_id: string; status: string }>(`/execute/${encodeURIComponent(id)}`, {
     method: 'POST',
   });
 }

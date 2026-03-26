@@ -3,6 +3,7 @@ import './Toolbar.css';
 import useFlowStore from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
 import { executePipeline, savePipeline } from '../../api/rest';
+import GlitchText from '../common/GlitchText';
 
 export default function Toolbar() {
   const nodes = useFlowStore((s) => s.nodes);
@@ -12,6 +13,7 @@ export default function Toolbar() {
   const clearTelemetry = usePipelineStore((s) => s.clearTelemetry);
   const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
   const pipelineName = usePipelineStore((s) => s.pipelineName);
+  const projectId = usePipelineStore((s) => s.projectId);
   const setCurrentPipeline = usePipelineStore((s) => s.setCurrentPipeline);
 
   const handleExecute = useCallback(async () => {
@@ -23,6 +25,7 @@ export default function Toolbar() {
 
       const pipelineData: Record<string, unknown> = {
         id: currentPipelineId,
+        project_id: projectId,
         name: pipelineName,
         nodes: nodes.map((n) => ({
           id: n.id,
@@ -47,14 +50,16 @@ export default function Toolbar() {
         setCurrentPipeline(pipelineId, pipelineName);
         await executePipeline(pipelineId);
       }
-    } catch {
+    } catch (err) {
       setExecuting(false);
+      console.error('Pipeline execution failed:', err);
     }
   }, [
     isExecuting,
     nodes,
     edges,
     currentPipelineId,
+    projectId,
     pipelineName,
     setExecuting,
     clearTelemetry,
@@ -64,7 +69,7 @@ export default function Toolbar() {
   return (
     <div className="toolbar">
       <div className="toolbar__group">
-        <span className="toolbar__label">{pipelineName}</span>
+        <GlitchText text={pipelineName} className="toolbar__label" />
         <span className="toolbar__separator">│</span>
         <span className="toolbar__node-count">
           {nodes.length} module{nodes.length !== 1 ? 's' : ''}

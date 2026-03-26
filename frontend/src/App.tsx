@@ -9,6 +9,7 @@ import Toolbar from './components/Toolbar/Toolbar';
 import ScanlineOverlay from './components/common/ScanlineOverlay';
 import DecorativeOverlay from './components/common/DecorativeOverlay';
 import useFlowStore from './store/useFlowStore';
+import usePipelineStore from './store/usePipelineStore';
 import { useWebSocketBridge } from './hooks/useWebSocketBridge';
 import { usePipelineSync } from './hooks/usePipelineSync';
 import { fetchNodeResult } from './api/rest';
@@ -24,6 +25,7 @@ export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
   const nodes = useFlowStore((s) => s.nodes);
   const nodeStatuses = useFlowStore((s) => s.nodeStatuses);
+  const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
   const sessionId = useMemo(generateSessionId, []);
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
@@ -49,8 +51,9 @@ export default function App() {
     try {
       const result = await fetchNodeResult(pipelineId, nodeId);
       setPreviewData(result.data as Record<string, unknown>);
-    } catch {
+    } catch (err) {
       setPreviewData(null);
+      setPreviewError(err instanceof Error ? err.message : 'Failed to load preview');
     } finally {
       setPreviewLoading(false);
     }
@@ -65,9 +68,11 @@ export default function App() {
     const status = nodeStatuses[selectedNodeId];
     if (status === 'DONE' || status === 'CACHED') {
       setPreviewVisible(true);
-      loadPreview(sessionId, selectedNodeId);
+      if (currentPipelineId) {
+        loadPreview(currentPipelineId, selectedNodeId);
+      }
     }
-  }, [selectedNodeId, nodeStatuses, sessionId, loadPreview]);
+  }, [selectedNodeId, nodeStatuses, currentPipelineId, loadPreview]);
 
   return (
     <>

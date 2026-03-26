@@ -46,11 +46,6 @@ const CustomEdge: FC<EdgeProps> = ({
           strokeOpacity: 0.8,
         }}
       />
-      <style>{`
-        @keyframes edgeFlow {
-          to { stroke-dashoffset: -20; }
-        }
-      `}</style>
     </>
   );
 };

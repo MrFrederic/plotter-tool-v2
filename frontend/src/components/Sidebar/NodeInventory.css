@@ -99,3 +99,11 @@
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
+
+.node-inventory__empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}

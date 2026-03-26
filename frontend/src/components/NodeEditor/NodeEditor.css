@@ -37,3 +37,8 @@
   stroke: var(--accent-cyan);
   stroke-opacity: 0.6;
 }
+
+/* Edge flow animation */
+@keyframes edgeFlow {
+  to { stroke-dashoffset: -20; }
+}

@@ -53,6 +53,11 @@ export default function NodeInventory() {
       </div>
 
       <div className="node-inventory__list">
+        {Object.keys(filtered).length === 0 && (
+          <div className="node-inventory__empty">
+            No modules found
+          </div>
+        )}
         {Object.entries(filtered).map(([category, items]) => (
           <div key={category} className="node-inventory__category">
             <div className="node-inventory__category-header">

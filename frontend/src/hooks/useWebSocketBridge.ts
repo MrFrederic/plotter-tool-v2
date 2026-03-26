@@ -21,7 +21,7 @@ export function useWebSocketBridge(sessionId: string) {
     const unsubscribe = ws.onMessage((data) => {
       if (data.type === 'node_status') {
         const nodeId = data.node_id as string;
-        const status = data.status as NodeStatus;
+        const status = (data.status as string).toUpperCase() as NodeStatus;
         setNodeStatus(nodeId, status);
 
         const telemetryMsg: TelemetryMessage = {
