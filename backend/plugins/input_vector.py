@@ -47,7 +47,10 @@ class VectorInput(BasePlugin):
         content = resolved.read_text(encoding="utf-8")
         stripped = content.strip()
         if not (stripped.startswith("<") or stripped.startswith("<?")):
-            raise ValueError("File does not appear to be a valid SVG document")
+            raise ValueError(
+                "File does not appear to be a valid SVG document "
+                "(content must start with '<' or '<?')"
+            )
 
         return {"vector": content}
 

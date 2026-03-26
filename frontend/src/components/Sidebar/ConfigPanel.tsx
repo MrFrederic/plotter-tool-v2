@@ -144,7 +144,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
         method: 'POST',
         body: formData,
       }).catch((err) => {
-        console.debug('Backend upload failed:', err);
+        console.debug(`Backend upload failed for "${file.name}":`, err);
       });
     },
     [onUpload],

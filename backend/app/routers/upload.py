@@ -37,6 +37,6 @@ async def upload_file(file: UploadFile = File(...)) -> dict:
 
     return {
         "filename": original_name,
-        "path": str(dest.resolve()),
+        "path": str(dest),
         "size": len(content),
     }
