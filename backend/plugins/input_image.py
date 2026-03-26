@@ -33,7 +33,7 @@ class ImageInput(BasePlugin):
                     name="file_path",
                     type="string",
                     default="",
-                    description="Relative path to the image file within the uploads directory",
+                    description="Path to the image file within the uploads directory",
                 ),
             ],
         )
@@ -45,9 +45,7 @@ class ImageInput(BasePlugin):
 
         resolved = Path(file_path).resolve()
         if not resolved.is_relative_to(ALLOWED_BASE):
-            raise ValueError(
-                "file_path must be within the allowed uploads directory"
-            )
+            raise ValueError("file_path must be within the allowed uploads directory")
 
         img = cv2.imread(str(resolved), cv2.IMREAD_COLOR)
         if img is None:
