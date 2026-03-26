@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import './App.css';
 import NodeEditor from './components/NodeEditor/NodeEditor';
 import NodeInventory from './components/Sidebar/NodeInventory';
@@ -15,21 +15,13 @@ import { useWebSocketBridge } from './hooks/useWebSocketBridge';
 import { usePipelineSync } from './hooks/usePipelineSync';
 import { fetchNodeResult } from './api/rest';
 
-function generateSessionId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
   const nodes = useFlowStore((s) => s.nodes);
   const selectedStatus = useFlowStore((s) =>
     s.selectedNodeId ? s.nodeStatuses[s.selectedNodeId] : undefined,
   );
-  const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
-  const sessionId = useMemo(generateSessionId, []);
+  const sessionId = usePipelineStore((s) => s.sessionId);
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
 
@@ -75,14 +67,12 @@ export default function App() {
     let abortController: AbortController | undefined;
     if (selectedStatus === 'DONE' || selectedStatus === 'CACHED') {
       setPreviewVisible(true);
-      if (currentPipelineId) {
-        abortController = new AbortController();
-        loadPreview(currentPipelineId, selectedNodeId, abortController.signal);
-      }
+      abortController = new AbortController();
+      loadPreview(sessionId, selectedNodeId, abortController.signal);
     }
 
     return () => { abortController?.abort(); };
-  }, [selectedNodeId, selectedStatus, currentPipelineId, loadPreview]);
+  }, [selectedNodeId, selectedStatus, sessionId, loadPreview]);
 
   return (
     <>

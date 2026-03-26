@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
+import usePipelineStore from '../../store/usePipelineStore';
 import { uploadFile } from '../../api/rest';
 import type { FileCategory, UploadedFile } from '../../types';
 
@@ -121,6 +122,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const updateNodeParams = useFlowStore((s) => s.updateNodeParams);
+  const sessionId = usePipelineStore((s) => s.sessionId);
 
   const processFile = useCallback(
     (file: File) => {
@@ -139,7 +141,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
 
       // Upload to backend and store path in Start node params
       const category = categorizeFile(file);
-      uploadFile(file)
+      uploadFile(file, sessionId)
         .then((data) => {
           updateNodeParams(START_NODE_ID, {
             file_path: data.path,
@@ -150,7 +152,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
           console.debug(`Backend upload failed for "${file.name}":`, err);
         });
     },
-    [onUpload, updateNodeParams],
+    [onUpload, updateNodeParams, sessionId],
   );
 
   const handleDrop = useCallback(
