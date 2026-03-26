@@ -50,22 +50,26 @@ class PathInput(BasePlugin):
 
         if not isinstance(data, list):
             raise ValueError("Path data must be a list of paths")
+
+        validated: list[list[list[float]]] = []
         for i, path in enumerate(data):
             if not isinstance(path, list):
                 raise ValueError(f"Path at index {i} must be a list of points")
+            validated_path: list[list[float]] = []
             for j, point in enumerate(path):
                 if not isinstance(point, list) or len(point) != 2:
                     raise ValueError(
                         f"Point at path[{i}][{j}] must be a list of exactly 2 float values"
                     )
                 try:
-                    data[i][j] = [float(point[0]), float(point[1])]
+                    validated_path.append([float(point[0]), float(point[1])])
                 except (TypeError, ValueError) as exc:
                     raise ValueError(
                         f"Point at path[{i}][{j}] contains non-numeric values"
                     ) from exc
+            validated.append(validated_path)
 
-        return {"paths": data}
+        return {"paths": validated}
 
 
 Plugin = PathInput

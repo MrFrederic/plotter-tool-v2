@@ -9,6 +9,9 @@ from app.config import settings
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
 @router.post("/")
 async def upload_file(file: UploadFile = File(...)) -> dict:
     """Accept an uploaded file, store it with a unique name, and return metadata."""
@@ -22,7 +25,13 @@ async def upload_file(file: UploadFile = File(...)) -> dict:
 
     try:
         content = await file.read()
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=413, detail="File exceeds maximum upload size of 50 MB"
+            )
         dest.write_bytes(content)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
 
