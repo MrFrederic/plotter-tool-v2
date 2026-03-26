@@ -14,6 +14,7 @@ from app.dag_engine import DAGEngine, ExecutionNode
 from app.database import get_db
 from app.models import Edge, NodeInstance, Pipeline
 from app.routers.plugins import get_plugin_classes
+from app.schemas import ExecutionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,9 @@ def _get_ws_manager() -> Any:
 
 @router.post("/{pipeline_id}")
 async def execute_pipeline(
-    pipeline_id: UUID, db: AsyncSession = Depends(get_db)
+    pipeline_id: UUID,
+    body: ExecutionRequest | None = None,
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Trigger execution of a pipeline.
 
@@ -113,7 +116,7 @@ async def execute_pipeline(
         "_created_at": time.monotonic(),
     }
 
-    session_id = str(pipeline_id)
+    session_id = (body.session_id if body and body.session_id else None) or str(pipeline_id)
 
     async def _run() -> None:
         try:

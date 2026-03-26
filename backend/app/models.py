@@ -95,6 +95,7 @@ class NodeInstance(Base):
         index=True,
     )
     plugin_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pos_x: Mapped[float] = mapped_column(Float, default=0.0)
     pos_y: Mapped[float] = mapped_column(Float, default=0.0)
     params: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -31,7 +31,14 @@ async def get_node_result(pipeline_id: UUID, node_id: str) -> dict[str, Any]:
             # Found the execution for this pipeline – look up the engine
             engine = _engines.get(_run_id)
             if engine is not None:
+                # Try direct node_id match first, then try matching by client_id
                 exec_node = engine.nodes.get(node_id)
+                if exec_node is None:
+                    # node_id might be a client-side ID; scan for client_id match
+                    for _nid, en in engine.nodes.items():
+                        if getattr(en, 'client_id', None) == node_id:
+                            exec_node = en
+                            break
                 if exec_node is not None and exec_node.result_hash:
                     result_hash = exec_node.result_hash
                     break

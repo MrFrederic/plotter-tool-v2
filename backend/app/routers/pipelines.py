@@ -73,6 +73,7 @@ async def create_pipeline(
         node = NodeInstance(
             pipeline_id=pipeline.id,
             plugin_name=node_data.plugin_name,
+            client_id=node_data.id,
             pos_x=node_data.pos_x,
             pos_y=node_data.pos_y,
             params=node_data.params,
@@ -132,6 +133,7 @@ async def update_pipeline(
             node = NodeInstance(
                 pipeline_id=pipeline.id,
                 plugin_name=node_data.plugin_name,
+                client_id=node_data.id,
                 pos_x=node_data.pos_x,
                 pos_y=node_data.pos_y,
                 params=node_data.params,
