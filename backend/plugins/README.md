@@ -56,11 +56,12 @@ Plugin = MyPlugin
 
 | Type | Enum | Description |
 |------|------|-------------|
-| Image | `PortType.IMAGE` | Pixel data (2D/3D array from OpenCV) |
-| Path | `PortType.PATH` | Vector paths — list of point lists `[[[x,y], ...], ...]` |
-| Text | `PortType.TEXT` | Plain text string |
-| G-code | `PortType.GCODE` | G-code string |
-| Any | `PortType.ANY` | Accepts any type |
+| Image | `PortType.IMAGE` | Raster image as pixel data |
+| Vector | `PortType.VECTOR` | Vector image, a list of SVG objects such as paths, text, shapes |
+| G-code | `PortType.GCODE` | A set of G-code instructions |
+| Path | `PortType.PATH` | List of point lists (supports native curves) |
+| Text | `PortType.TEXT` | Arbitrary text |
+| Other | `PortType.OTHER` | Some other arbitrary data |
 
 ## Parameter Types
 

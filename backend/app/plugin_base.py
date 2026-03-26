@@ -9,11 +9,12 @@ from pydantic import BaseModel, Field
 
 
 class PortType(str, Enum):
-    IMAGE = "image"
-    PATH = "path"
-    TEXT = "text"
-    GCODE = "gcode"
-    ANY = "any"
+    IMAGE = "image"      # Raster image as pixel data
+    VECTOR = "vector"    # Vector image, a list of SVG objects such as paths, text, shapes
+    GCODE = "gcode"      # A set of G-code instructions
+    PATH = "path"        # List of point lists (supports native curves)
+    TEXT = "text"         # Arbitrary text
+    OTHER = "other"      # Some other arbitrary data
 
 
 class PortDefinition(BaseModel):

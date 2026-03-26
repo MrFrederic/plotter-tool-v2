@@ -98,7 +98,11 @@ async def execute_pipeline(
         )
 
     plugin_classes = get_plugin_classes()
-    engine = DAGEngine(exec_nodes, plugin_classes)
+    raw_edges = [
+        (str(e.source_node_id), e.source_output, str(e.target_node_id), e.target_input)
+        for e in pipeline.edges
+    ]
+    engine = DAGEngine(exec_nodes, plugin_classes, edges=raw_edges)
 
     # Validate before running
     errors = engine.validate()
