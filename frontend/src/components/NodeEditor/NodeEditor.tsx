@@ -11,6 +11,7 @@ import './NodeEditor.css';
 import CustomNode from './CustomNode';
 import CustomEdge from './CustomEdge';
 import useFlowStore from '../../store/useFlowStore';
+import type { PortDefinition } from '../../types';
 
 interface FlowInstance {
   screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number };
@@ -66,6 +67,43 @@ export default function NodeEditor() {
     selectNode(null);
   }, [selectNode]);
 
+  const isValidConnection = useCallback(
+    (connection: { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
+      // Prevent self-connections
+      if (connection.source === connection.target) return false;
+
+      // Prevent multiple incoming connections to the same input port
+      const existingEdge = edges.find(
+        (e) => e.target === connection.target && e.targetHandle === connection.targetHandle,
+      );
+      if (existingEdge) return false;
+
+      // Port type compatibility check
+      const sourceNode = nodes.find((n) => n.id === connection.source);
+      const targetNode = nodes.find((n) => n.id === connection.target);
+      if (sourceNode && targetNode) {
+        const sourcePort = sourceNode.data.outputs.find(
+          (p: PortDefinition) => p.name === connection.sourceHandle,
+        );
+        const targetPort = targetNode.data.inputs.find(
+          (p: PortDefinition) => p.name === connection.targetHandle,
+        );
+        if (
+          sourcePort &&
+          targetPort &&
+          sourcePort.type !== targetPort.type &&
+          sourcePort.type !== 'other' &&
+          targetPort.type !== 'other'
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    },
+    [nodes, edges],
+  );
+
   return (
     <div className="node-editor" ref={reactFlowWrapper}>
       <ReactFlow
@@ -74,6 +112,7 @@ export default function NodeEditor() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onInit={onInit}
         onDrop={onDrop}
         onDragOver={onDragOver}

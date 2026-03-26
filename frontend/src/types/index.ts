@@ -11,7 +11,7 @@ export interface PluginSchema {
 
 export interface PortDefinition {
   name: string;
-  type: 'image' | 'path' | 'text' | 'gcode' | 'any';
+  type: 'image' | 'vector' | 'gcode' | 'path' | 'text' | 'other';
   description?: string;
 }
 

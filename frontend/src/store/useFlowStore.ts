@@ -130,6 +130,36 @@ const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   onConnect: (connection) => {
+    // Prevent self-connections
+    if (connection.source === connection.target) return;
+
+    // Prevent multiple incoming connections to the same input port
+    const existingEdge = get().edges.find(
+      (e) => e.target === connection.target && e.targetHandle === connection.targetHandle,
+    );
+    if (existingEdge) return;
+
+    // Port type compatibility check
+    const sourceNode = get().nodes.find((n) => n.id === connection.source);
+    const targetNode = get().nodes.find((n) => n.id === connection.target);
+    if (sourceNode && targetNode) {
+      const sourcePort = sourceNode.data.outputs.find(
+        (p) => p.name === connection.sourceHandle,
+      );
+      const targetPort = targetNode.data.inputs.find(
+        (p) => p.name === connection.targetHandle,
+      );
+      if (
+        sourcePort &&
+        targetPort &&
+        sourcePort.type !== targetPort.type &&
+        sourcePort.type !== 'other' &&
+        targetPort.type !== 'other'
+      ) {
+        return;
+      }
+    }
+
     set({ edges: addEdge({ ...connection, type: 'custom' }, get().edges) });
   },
 
