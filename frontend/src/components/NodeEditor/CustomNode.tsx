@@ -3,17 +3,17 @@ import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { FlowNodeData } from '../../store/useFlowStore';
 import './CustomNode.css';
 
-const statusColors: Record<string, string> = {
-  IDLE: '#4a4a5a',
-  WAITING: '#ffaa00',
-  RUNNING: '#ffaa00',
-  CACHED: '#00f0ff',
-  DONE: '#00ff88',
-  ERROR: '#ff3366',
+const statusColorVars: Record<string, string> = {
+  IDLE: 'var(--text-dim)',
+  WAITING: 'var(--accent-amber)',
+  RUNNING: 'var(--accent-amber)',
+  CACHED: 'var(--accent-cyan)',
+  DONE: 'var(--success)',
+  ERROR: 'var(--danger)',
 };
 
 function CustomNode({ data, selected }: NodeProps<Node<FlowNodeData>>) {
-  const statusColor = statusColors[data.status] || statusColors.IDLE;
+  const statusColor = statusColorVars[data.status] || statusColorVars.IDLE;
   const paramCount = Object.keys(data.params).length;
 
   return (

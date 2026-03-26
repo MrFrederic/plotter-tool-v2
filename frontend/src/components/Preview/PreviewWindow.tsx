@@ -3,6 +3,7 @@ import './PreviewWindow.css';
 import RasterViewer from './RasterViewer';
 import VectorViewer from './VectorViewer';
 import GCodeViewer from './GCodeViewer';
+import GlitchText from '../common/GlitchText';
 
 interface PreviewWindowProps {
   visible: boolean;
@@ -46,10 +47,9 @@ export default function PreviewWindow({
       if (!dragRef.current) return;
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
-      setPosition({
-        x: dragRef.current.origX + dx,
-        y: dragRef.current.origY + dy,
-      });
+      const newX = Math.max(0, Math.min(window.innerWidth - 200, dragRef.current.origX + dx));
+      const newY = Math.max(0, Math.min(window.innerHeight - 50, dragRef.current.origY + dy));
+      setPosition({ x: newX, y: newY });
     };
 
     const onMouseUp = () => {
@@ -98,7 +98,7 @@ export default function PreviewWindow({
           {loading && (
             <div className="preview-window__loading">
               <div className="preview-window__spinner" />
-              <span>LOADING DATA...</span>
+              <GlitchText text="LOADING DATA..." duration={800} />
             </div>
           )}
 
