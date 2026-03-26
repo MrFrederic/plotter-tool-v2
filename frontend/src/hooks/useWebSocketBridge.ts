@@ -11,6 +11,7 @@ import type { NodeStatus, TelemetryMessage } from '../types';
 export function useWebSocketBridge(sessionId: string) {
   const wsRef = useRef<WebSocketManager | null>(null);
   const setNodeStatus = useFlowStore((s) => s.setNodeStatus);
+  const setNodeError = useFlowStore((s) => s.setNodeError);
   const addTelemetryMessage = usePipelineStore((s) => s.addTelemetryMessage);
   const setExecuting = usePipelineStore((s) => s.setExecuting);
 
@@ -24,11 +25,26 @@ export function useWebSocketBridge(sessionId: string) {
         const status = (data.status as string).toUpperCase() as NodeStatus;
         setNodeStatus(nodeId, status);
 
+        // Capture error messages when status is ERROR
+        if (status === 'ERROR') {
+          const errorMsg =
+            (data.error as string) ||
+            (data.message as string) ||
+            'Unknown error during execution';
+          setNodeError(nodeId, errorMsg);
+        } else {
+          // Clear previous error when node moves to a non-error state
+          setNodeError(nodeId, null);
+        }
+
         const telemetryMsg: TelemetryMessage = {
           node_id: nodeId,
           status,
           progress: data.progress as number | undefined,
-          message: data.message as string | undefined,
+          message:
+            status === 'ERROR'
+              ? (data.error as string) || (data.message as string) || 'Execution error'
+              : (data.message as string | undefined),
           timestamp: (data.timestamp as string) || new Date().toISOString(),
         };
         addTelemetryMessage(telemetryMsg);
@@ -36,6 +52,18 @@ export function useWebSocketBridge(sessionId: string) {
 
       if (data.type === 'execution_complete') {
         setExecuting(false);
+
+        // If execution completed with errors, add a summary telemetry entry
+        if (data.status === 'error' || data.error) {
+          const errorMsg =
+            (data.error as string) || 'Pipeline execution completed with errors';
+          addTelemetryMessage({
+            node_id: 'SYSTEM',
+            status: 'ERROR',
+            message: errorMsg,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     });
 
@@ -44,7 +72,7 @@ export function useWebSocketBridge(sessionId: string) {
       ws.close();
       wsRef.current = null;
     };
-  }, [sessionId, setNodeStatus, addTelemetryMessage, setExecuting]);
+  }, [sessionId, setNodeStatus, setNodeError, addTelemetryMessage, setExecuting]);
 
   return wsRef;
 }
