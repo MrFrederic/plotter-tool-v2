@@ -1,0 +1,120 @@
+.custom-node {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  min-width: 180px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.2s ease;
+}
+
+.custom-node--selected {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px var(--border-glow), inset 0 0 12px rgba(0, 240, 255, 0.05);
+}
+
+.custom-node__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.custom-node__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px var(--status-color);
+}
+
+.custom-node__title {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-node__category {
+  color: var(--text-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.custom-node__body {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  min-height: 32px;
+}
+
+.custom-node__ports {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-node__port {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  position: relative;
+}
+
+.custom-node__port--right {
+  justify-content: flex-end;
+}
+
+.custom-node__port-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: lowercase;
+}
+
+.custom-node__handle {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 0 !important;
+  border: 1px solid var(--accent-cyan) !important;
+  background: var(--bg-primary) !important;
+}
+
+.custom-node__handle:hover {
+  background: var(--accent-cyan) !important;
+  box-shadow: 0 0 6px var(--accent-cyan);
+}
+
+.custom-node__handle--input {
+  left: -5px !important;
+}
+
+.custom-node__handle--output {
+  right: -5px !important;
+}
+
+.custom-node__progress-bar {
+  height: 2px;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.custom-node__progress-fill {
+  height: 100%;
+  width: 40%;
+  background: var(--accent-amber);
+  animation: progressSlide 1.2s ease-in-out infinite;
+}
+
+@keyframes progressSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}

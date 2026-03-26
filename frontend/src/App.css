@@ -1,0 +1,41 @@
+.app-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr auto;
+  grid-template-rows: 1fr 180px;
+  grid-template-areas:
+    'sidebar canvas config'
+    'telemetry telemetry telemetry';
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.app-layout--no-config {
+  grid-template-columns: 250px 1fr;
+  grid-template-areas:
+    'sidebar canvas'
+    'telemetry telemetry';
+}
+
+.app-layout__sidebar {
+  grid-area: sidebar;
+  overflow: hidden;
+}
+
+.app-layout__canvas {
+  grid-area: canvas;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-layout__config {
+  grid-area: config;
+  width: 300px;
+  overflow: hidden;
+}
+
+.app-layout__telemetry {
+  grid-area: telemetry;
+  overflow: hidden;
+}
