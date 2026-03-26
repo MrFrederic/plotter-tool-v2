@@ -22,8 +22,13 @@ const edgeTypes = { custom: CustomEdge };
 export default function NodeEditor() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowRef = useRef<FlowInstance | null>(null);
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectNode } =
-    useFlowStore();
+  const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
+  const onNodesChange = useFlowStore((s) => s.onNodesChange);
+  const onEdgesChange = useFlowStore((s) => s.onEdgesChange);
+  const onConnect = useFlowStore((s) => s.onConnect);
+  const addNode = useFlowStore((s) => s.addNode);
+  const selectNode = useFlowStore((s) => s.selectNode);
 
   const onInit = useCallback((instance: FlowInstance) => {
     reactFlowRef.current = instance;

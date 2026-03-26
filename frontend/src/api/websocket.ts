@@ -10,6 +10,7 @@ export class WebSocketManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private sessionId: string;
   private closed = false;
+  private messageQueue: Record<string, unknown>[] = [];
 
   constructor(sessionId: string) {
     this.sessionId = sessionId;
@@ -24,11 +25,13 @@ export class WebSocketManager {
 
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;
+        this.flushQueue();
       };
 
       this.ws.onmessage = (event: MessageEvent) => {
+        if (typeof event.data !== 'string') return;
         try {
-          const data = JSON.parse(event.data as string) as Record<string, unknown>;
+          const data = JSON.parse(event.data) as Record<string, unknown>;
           this.listeners.forEach((cb) => cb(data));
         } catch {
           // Ignore malformed messages
@@ -60,9 +63,18 @@ export class WebSocketManager {
     }, delay);
   }
 
+  private flushQueue(): void {
+    while (this.messageQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
+      const msg = this.messageQueue.shift()!;
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
   send(data: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
+    } else {
+      this.messageQueue.push(data);
     }
   }
 
@@ -80,5 +92,6 @@ export class WebSocketManager {
     }
     this.ws?.close();
     this.listeners = [];
+    this.messageQueue = [];
   }
 }

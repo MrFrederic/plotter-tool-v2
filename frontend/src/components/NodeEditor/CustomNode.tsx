@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { FlowNodeData } from '../../store/useFlowStore';
 import './CustomNode.css';
 
@@ -12,16 +12,15 @@ const statusColors: Record<string, string> = {
   ERROR: '#ff3366',
 };
 
-function CustomNode({ data, selected }: NodeProps) {
-  const nodeData = data as unknown as FlowNodeData;
-  const statusColor = statusColors[nodeData.status] || statusColors.IDLE;
-  const paramCount = Object.keys(nodeData.params).length;
+function CustomNode({ data, selected }: NodeProps<Node<FlowNodeData>>) {
+  const statusColor = statusColors[data.status] || statusColors.IDLE;
+  const paramCount = Object.keys(data.params).length;
 
   return (
     <div
-      className={`custom-node custom-node--status-${nodeData.status.toLowerCase()} ${selected ? 'custom-node--selected' : ''}`}
+      className={`custom-node custom-node--status-${data.status.toLowerCase()} ${selected ? 'custom-node--selected' : ''}`}
       style={{ '--status-color': statusColor } as React.CSSProperties}
-      data-status={nodeData.status}
+      data-status={data.status}
     >
       <div className="custom-node__status-bar" />
 
@@ -30,16 +29,16 @@ function CustomNode({ data, selected }: NodeProps) {
           className="custom-node__status-dot"
           style={{ background: statusColor }}
         />
-        <span className="custom-node__title">{nodeData.label}</span>
+        <span className="custom-node__title">{data.label}</span>
         {paramCount > 0 && (
           <span className="custom-node__param-badge">{paramCount}</span>
         )}
-        <span className="custom-node__category">{nodeData.category}</span>
+        <span className="custom-node__category">{data.category}</span>
       </div>
 
       <div className="custom-node__body">
         <div className="custom-node__ports custom-node__ports--inputs">
-          {nodeData.inputs.map((input) => (
+          {data.inputs.map((input) => (
             <div key={input.name} className="custom-node__port">
               <Handle
                 type="target"
@@ -53,7 +52,7 @@ function CustomNode({ data, selected }: NodeProps) {
         </div>
 
         <div className="custom-node__ports custom-node__ports--outputs">
-          {nodeData.outputs.map((output) => (
+          {data.outputs.map((output) => (
             <div key={output.name} className="custom-node__port custom-node__port--right">
               <span className="custom-node__port-label">{output.name}</span>
               <Handle
@@ -67,7 +66,7 @@ function CustomNode({ data, selected }: NodeProps) {
         </div>
       </div>
 
-      {nodeData.status === 'RUNNING' && (
+      {data.status === 'RUNNING' && (
         <div className="custom-node__progress-bar">
           <div className="custom-node__progress-fill" />
         </div>

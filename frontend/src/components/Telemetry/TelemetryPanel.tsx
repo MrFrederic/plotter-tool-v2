@@ -12,7 +12,8 @@ const statusSymbol: Record<string, string> = {
 };
 
 export default function TelemetryPanel() {
-  const { telemetryLog, isExecuting } = usePipelineStore();
+  const telemetryLog = usePipelineStore((s) => s.telemetryLog);
+  const isExecuting = usePipelineStore((s) => s.isExecuting);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function TelemetryPanel() {
 
         {telemetryLog.map((msg, i) => (
           <div
-            key={i}
+            key={`${msg.timestamp}_${msg.node_id}_${i}`}
             className="telemetry-panel__entry"
             data-status={msg.status}
           >

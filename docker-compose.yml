@@ -43,18 +43,14 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "3000:80"
     depends_on:
       - api
-    volumes:
-      - ./frontend:/app
-      - node_modules:/app/node_modules
     networks:
       - plotter-net
 
 volumes:
   postgres_data:
-  node_modules:
 
 networks:
   plotter-net:

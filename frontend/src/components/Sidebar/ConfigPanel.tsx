@@ -3,7 +3,9 @@ import './ConfigPanel.css';
 import useFlowStore from '../../store/useFlowStore';
 
 export default function ConfigPanel() {
-  const { nodes, selectedNodeId, updateNodeParams } = useFlowStore();
+  const nodes = useFlowStore((s) => s.nodes);
+  const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
+  const updateNodeParams = useFlowStore((s) => s.updateNodeParams);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   if (!selectedNode) return null;
@@ -77,6 +79,12 @@ function ParameterField({
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const debouncedChange = useCallback(
     (val: unknown) => {
