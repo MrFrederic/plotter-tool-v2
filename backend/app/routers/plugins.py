@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/plugins", tags=["plugins"])
 
@@ -25,7 +25,5 @@ async def list_plugins() -> list[dict[str, Any]]:
 async def get_plugin(plugin_name: str) -> dict[str, Any]:
     """Return the schema for a specific plugin."""
     if plugin_name not in _plugin_registry:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail=f"Plugin '{plugin_name}' not found")
     return {"name": plugin_name, **_plugin_registry[plugin_name]}

@@ -39,8 +39,7 @@ async def create_pipeline(
     db.add(pipeline)
     await db.flush()
 
-    node_map: dict[int, UUID] = {}
-    for idx, node_data in enumerate(payload.nodes):
+    for node_data in payload.nodes:
         node = NodeInstance(
             pipeline_id=pipeline.id,
             plugin_name=node_data.plugin_name,
@@ -50,7 +49,6 @@ async def create_pipeline(
         )
         db.add(node)
         await db.flush()
-        node_map[idx] = node.id
 
     for edge_data in payload.edges:
         edge = Edge(
