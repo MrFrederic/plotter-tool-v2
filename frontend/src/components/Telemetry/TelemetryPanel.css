@@ -121,3 +121,20 @@
   color: var(--accent-cyan);
   font-size: 12px;
 }
+
+/* Error entry styling */
+.telemetry-panel__entry--error {
+  background: rgba(255, 51, 102, 0.08);
+  border-left: 2px solid var(--danger);
+  padding-left: 6px;
+}
+
+.telemetry-panel__entry--error .telemetry-panel__message {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.telemetry-panel__entry--error .telemetry-panel__symbol {
+  color: var(--danger);
+  text-shadow: 0 0 4px rgba(255, 51, 102, 0.6);
+}

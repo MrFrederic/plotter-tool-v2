@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import './Toolbar.css';
-import useFlowStore from '../../store/useFlowStore';
+import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
 import { executePipeline, savePipeline } from '../../api/rest';
 import GlitchText from '../common/GlitchText';
+
+const SPECIAL_IDS = new Set([START_NODE_ID, END_NODE_ID]);
 
 export default function Toolbar() {
   const nodes = useFlowStore((s) => s.nodes);
@@ -11,30 +13,40 @@ export default function Toolbar() {
   const isExecuting = usePipelineStore((s) => s.isExecuting);
   const setExecuting = usePipelineStore((s) => s.setExecuting);
   const clearTelemetry = usePipelineStore((s) => s.clearTelemetry);
+  const addTelemetryMessage = usePipelineStore((s) => s.addTelemetryMessage);
   const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
   const pipelineName = usePipelineStore((s) => s.pipelineName);
   const projectId = usePipelineStore((s) => s.projectId);
   const setCurrentPipeline = usePipelineStore((s) => s.setCurrentPipeline);
 
+  // Count only processing nodes (not start/end)
+  const processNodeCount = nodes.filter((n) => !SPECIAL_IDS.has(n.id)).length;
+
   const handleExecute = useCallback(async () => {
-    if (isExecuting || nodes.length === 0) return;
+    if (isExecuting || processNodeCount === 0) return;
 
     try {
       setExecuting(true);
       clearTelemetry();
 
+      // Filter out start/end nodes — they are frontend-only
+      const syncNodes = nodes.filter((n) => !SPECIAL_IDS.has(n.id));
+      const syncEdges = edges.filter(
+        (e) => !SPECIAL_IDS.has(e.source) && !SPECIAL_IDS.has(e.target),
+      );
+
       const pipelineData: Record<string, unknown> = {
         id: currentPipelineId,
         project_id: projectId,
         name: pipelineName,
-        nodes: nodes.map((n) => ({
+        nodes: syncNodes.map((n) => ({
           id: n.id,
           plugin_name: n.data.pluginName,
           pos_x: n.position.x,
           pos_y: n.position.y,
           params: n.data.params,
         })),
-        edges: edges.map((e) => ({
+        edges: syncEdges.map((e) => ({
           id: e.id,
           source_node_id: e.source,
           source_output: e.sourceHandle || 'output',
@@ -52,10 +64,17 @@ export default function Toolbar() {
       }
     } catch (err) {
       setExecuting(false);
-      console.error('Pipeline execution failed:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Pipeline execution failed';
+      addTelemetryMessage({
+        node_id: 'SYSTEM',
+        status: 'ERROR',
+        message: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
     }
   }, [
     isExecuting,
+    processNodeCount,
     nodes,
     edges,
     currentPipelineId,
@@ -64,6 +83,7 @@ export default function Toolbar() {
     setExecuting,
     clearTelemetry,
     setCurrentPipeline,
+    addTelemetryMessage,
   ]);
 
   return (
@@ -72,7 +92,7 @@ export default function Toolbar() {
         <GlitchText text={pipelineName} className="toolbar__label" />
         <span className="toolbar__separator">│</span>
         <span className="toolbar__node-count">
-          {nodes.length} module{nodes.length !== 1 ? 's' : ''}
+          {processNodeCount} module{processNodeCount !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -80,7 +100,7 @@ export default function Toolbar() {
         <button
           className={`toolbar__btn toolbar__btn--execute ${isExecuting ? 'toolbar__btn--active' : ''}`}
           onClick={handleExecute}
-          disabled={isExecuting || nodes.length === 0}
+          disabled={isExecuting || processNodeCount === 0}
         >
           {isExecuting ? '● PROCESSING...' : '▶ EXECUTE'}
         </button>

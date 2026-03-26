@@ -7,10 +7,9 @@ import {
   type OnConnect,
   applyNodeChanges,
   applyEdgeChanges,
-  addEdge,
   type NodeChange,
 } from '@xyflow/react';
-import type { NodeStatus, PluginSchema } from '../types';
+import type { NodeStatus, PluginSchema, UploadedFile } from '../types';
 import { fetchPlugins } from '../api/rest';
 
 export interface FlowNodeData extends Record<string, unknown> {
@@ -23,6 +22,78 @@ export interface FlowNodeData extends Record<string, unknown> {
   parameters: PluginSchema['parameters'];
   status: NodeStatus;
   schema: PluginSchema;
+  nodeKind?: 'start' | 'end' | 'process';
+}
+
+export const START_NODE_ID = '__start__';
+export const END_NODE_ID = '__end__';
+
+const START_SCHEMA: PluginSchema = {
+  name: 'Pipeline Input',
+  category: 'Flow',
+  description: 'Entry point — upload a file for processing',
+  inputs: [],
+  outputs: [
+    { name: 'image', type: 'image' },
+    { name: 'vector', type: 'path' },
+    { name: 'gcode', type: 'gcode' },
+    { name: 'other', type: 'any' },
+  ],
+  parameters: [],
+};
+
+const END_SCHEMA: PluginSchema = {
+  name: 'Pipeline Output',
+  category: 'Flow',
+  description: 'End point — download the final result',
+  inputs: [
+    { name: 'image', type: 'image' },
+    { name: 'vector', type: 'path' },
+    { name: 'gcode', type: 'gcode' },
+    { name: 'other', type: 'any' },
+  ],
+  outputs: [],
+  parameters: [],
+};
+
+function makeStartNode(): Node<FlowNodeData> {
+  return {
+    id: START_NODE_ID,
+    type: 'start',
+    position: { x: 80, y: 200 },
+    data: {
+      label: 'PIPELINE INPUT',
+      pluginName: 'Pipeline Input',
+      category: 'Flow',
+      params: {},
+      inputs: START_SCHEMA.inputs,
+      outputs: START_SCHEMA.outputs,
+      parameters: START_SCHEMA.parameters,
+      status: 'IDLE',
+      schema: START_SCHEMA,
+      nodeKind: 'start',
+    },
+  };
+}
+
+function makeEndNode(): Node<FlowNodeData> {
+  return {
+    id: END_NODE_ID,
+    type: 'end',
+    position: { x: 800, y: 200 },
+    data: {
+      label: 'PIPELINE OUTPUT',
+      pluginName: 'Pipeline Output',
+      category: 'Flow',
+      params: {},
+      inputs: END_SCHEMA.inputs,
+      outputs: END_SCHEMA.outputs,
+      parameters: END_SCHEMA.parameters,
+      status: 'IDLE',
+      schema: END_SCHEMA,
+      nodeKind: 'end',
+    },
+  };
 }
 
 interface FlowState {
@@ -30,15 +101,24 @@ interface FlowState {
   edges: Edge[];
   selectedNodeId: string | null;
   nodeStatuses: Record<string, NodeStatus>;
+  nodeErrors: Record<string, string>;
   pluginSchemas: PluginSchema[];
+  uploadedFile: UploadedFile | null;
+
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   addNode: (pluginName: string, position: { x: number; y: number }) => void;
+  duplicateNode: (nodeId: string) => void;
+  deleteSelectedElements: () => void;
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
   setNodeStatus: (nodeId: string, status: NodeStatus) => void;
+  setNodeError: (nodeId: string, error: string | null) => void;
   selectNode: (nodeId: string | null) => void;
   loadPluginSchemas: () => Promise<void>;
+  setUploadedFile: (file: UploadedFile | null) => void;
+  removeEdge: (edgeId: string) => void;
+  removeNode: (nodeId: string) => void;
 }
 
 const FALLBACK_PLUGINS: PluginSchema[] = [
@@ -109,19 +189,24 @@ const FALLBACK_PLUGINS: PluginSchema[] = [
 
 let nodeCounter = 0;
 
+const isSpecialNode = (id: string) => id === START_NODE_ID || id === END_NODE_ID;
+
 const useFlowStore = create<FlowState>((set, get) => ({
-  nodes: [],
+  nodes: [makeStartNode(), makeEndNode()],
   edges: [],
   selectedNodeId: null,
   nodeStatuses: {},
+  nodeErrors: {},
   pluginSchemas: [],
+  uploadedFile: null,
 
   onNodesChange: (changes) => {
+    // Protect start/end nodes from deletion
+    const safeChanges = (changes as NodeChange<Node<FlowNodeData>>[]).filter(
+      (c) => !(c.type === 'remove' && isSpecialNode(c.id)),
+    );
     set({
-      nodes: applyNodeChanges(
-        changes as NodeChange<Node<FlowNodeData>>[],
-        get().nodes,
-      ),
+      nodes: applyNodeChanges(safeChanges, get().nodes),
     });
   },
 
@@ -187,6 +272,7 @@ const useFlowStore = create<FlowState>((set, get) => ({
         parameters: plugin.parameters,
         status: 'IDLE',
         schema: plugin,
+        nodeKind: 'process',
       },
     };
 
@@ -194,6 +280,60 @@ const useFlowStore = create<FlowState>((set, get) => ({
       nodes: [...get().nodes, newNode],
       nodeStatuses: { ...get().nodeStatuses, [id]: 'IDLE' },
     });
+  },
+
+  duplicateNode: (nodeId) => {
+    const original = get().nodes.find((n) => n.id === nodeId);
+    if (!original || isSpecialNode(nodeId)) return;
+
+    const id = `node_${++nodeCounter}_${Date.now()}`;
+    const newNode: Node<FlowNodeData> = {
+      ...original,
+      id,
+      position: {
+        x: original.position.x + 40,
+        y: original.position.y + 40,
+      },
+      selected: false,
+      data: {
+        ...original.data,
+        status: 'IDLE',
+        params: { ...original.data.params },
+      },
+    };
+
+    set({
+      nodes: [...get().nodes, newNode],
+      nodeStatuses: { ...get().nodeStatuses, [id]: 'IDLE' },
+    });
+  },
+
+  deleteSelectedElements: () => {
+    const { nodes, edges } = get();
+    const selectedNodeIds = new Set(
+      nodes
+        .filter((n) => n.selected && !isSpecialNode(n.id))
+        .map((n) => n.id),
+    );
+
+    if (selectedNodeIds.size > 0) {
+      const remainingNodes = nodes.filter(
+        (n) => !selectedNodeIds.has(n.id),
+      );
+      // Also remove edges connected to deleted nodes
+      const remainingEdges = edges.filter(
+        (e) =>
+          !selectedNodeIds.has(e.source) && !selectedNodeIds.has(e.target),
+      );
+      set({ nodes: remainingNodes, edges: remainingEdges });
+      return;
+    }
+
+    // If no nodes selected, try removing selected edges
+    const remainingEdges = edges.filter((e) => !e.selected);
+    if (remainingEdges.length < edges.length) {
+      set({ edges: remainingEdges });
+    }
   },
 
   updateNodeParams: (nodeId, params) => {
@@ -215,6 +355,16 @@ const useFlowStore = create<FlowState>((set, get) => ({
     });
   },
 
+  setNodeError: (nodeId, error) => {
+    const errors = { ...get().nodeErrors };
+    if (error) {
+      errors[nodeId] = error;
+    } else {
+      delete errors[nodeId];
+    }
+    set({ nodeErrors: errors });
+  },
+
   selectNode: (nodeId) => {
     set({ selectedNodeId: nodeId });
   },
@@ -228,6 +378,25 @@ const useFlowStore = create<FlowState>((set, get) => ({
         set({ pluginSchemas: FALLBACK_PLUGINS });
       }
     }
+  },
+
+  setUploadedFile: (file) => {
+    set({ uploadedFile: file });
+  },
+
+  removeEdge: (edgeId) => {
+    set({ edges: get().edges.filter((e) => e.id !== edgeId) });
+  },
+
+  removeNode: (nodeId) => {
+    if (isSpecialNode(nodeId)) return;
+    const edges = get().edges.filter(
+      (e) => e.source !== nodeId && e.target !== nodeId,
+    );
+    set({
+      nodes: get().nodes.filter((n) => n.id !== nodeId),
+      edges,
+    });
   },
 }));
 

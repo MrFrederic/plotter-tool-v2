@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react';
-import useFlowStore from '../store/useFlowStore';
+import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../store/useFlowStore';
 import type { WebSocketManager } from '../api/websocket';
+
+const SPECIAL_IDS = new Set([START_NODE_ID, END_NODE_ID]);
 
 /**
  * Debounced (500 ms) sync of the current pipeline state to the backend
  * over WebSocket whenever nodes or edges change.
+ * Filters out start/end special nodes (frontend-only).
  */
 export function usePipelineSync(
   wsRef: { current: WebSocketManager | null },
@@ -17,21 +20,27 @@ export function usePipelineSync(
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (nodes.length === 0 && edges.length === 0) {
+    // Filter out special start/end nodes — they are frontend-only
+    const syncNodes = nodes.filter((n) => !SPECIAL_IDS.has(n.id));
+    const syncEdges = edges.filter(
+      (e) => !SPECIAL_IDS.has(e.source) && !SPECIAL_IDS.has(e.target),
+    );
+
+    if (syncNodes.length === 0 && syncEdges.length === 0) {
       pendingStateRef.current = null;
       return;
     }
 
     const pipelineState = {
       type: 'pipeline_sync',
-      nodes: nodes.map((n) => ({
+      nodes: syncNodes.map((n) => ({
         id: n.id,
         plugin_name: n.data.pluginName,
         pos_x: n.position.x,
         pos_y: n.position.y,
         params: n.data.params,
       })),
-      edges: edges.map((e) => ({
+      edges: syncEdges.map((e) => ({
         id: e.id,
         source_node_id: e.source,
         source_output: e.sourceHandle || 'output',
@@ -55,9 +64,10 @@ export function usePipelineSync(
 
   // Flush pending state on unmount
   useEffect(() => {
+    const currentWsRef = wsRef;
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      const ws = wsRef.current;
+      const ws = currentWsRef.current;
       if (pendingStateRef.current && ws) {
         ws.send(pendingStateRef.current);
       }
