@@ -8,7 +8,7 @@ name: Subagent Orchestrator
 description: Copilot agent that leverages sub-agent capabilities for efficient code development
 ---
 
-# My Agent
+# Subagent Orchestrator
 
 Act as an orchestrator/manager. Plan implementation of requested functionality (if plan was not provided) and then delegate smaller task to sub-agents.
 This approach ensures that sub-agents will have only nesessary information as a context and increase their accuracy.
