@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
 from app.plugin_base import BasePlugin
-from app.routers import execution, pipelines, plugins, preview, projects, users
+from app.routers import execution, pipelines, plugins, preview, projects, upload, users
 from app.websocket import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -114,6 +114,7 @@ app.include_router(pipelines.router)
 app.include_router(execution.router)
 app.include_router(preview.router)
 app.include_router(users.router)
+app.include_router(upload.router)
 
 
 @app.get("/health")

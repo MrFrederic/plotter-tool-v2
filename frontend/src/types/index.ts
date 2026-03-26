@@ -50,7 +50,7 @@ export interface PipelineEdge {
   target_input: string;
 }
 
-export type FileCategory = 'image' | 'vector' | 'gcode' | 'other';
+export type FileCategory = 'image' | 'vector' | 'gcode' | 'path' | 'text' | 'other';
 
 export interface UploadedFile {
   name: string;

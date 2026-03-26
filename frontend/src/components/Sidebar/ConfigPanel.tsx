@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
+import { uploadFile } from '../../api/rest';
 import type { FileCategory, UploadedFile } from '../../types';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'gif']);
 const VECTOR_EXTS = new Set(['svg', 'dxf', 'ai', 'eps']);
 const GCODE_EXTS = new Set(['gcode', 'nc', 'ngc', 'tap', 'cnc']);
+const TEXT_EXTS = new Set(['txt', 'md', 'log', 'csv', 'tsv', 'xml', 'json', 'yaml', 'yml']);
 
 function categorizeFile(file: File): FileCategory {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   if (IMAGE_EXTS.has(ext)) return 'image';
   if (VECTOR_EXTS.has(ext)) return 'vector';
   if (GCODE_EXTS.has(ext)) return 'gcode';
+  if (TEXT_EXTS.has(ext)) return 'text';
   if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('text/')) return 'text';
   return 'other';
 }
 
@@ -116,6 +120,7 @@ interface FileUploadAreaProps {
 function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const updateNodeParams = useFlowStore((s) => s.updateNodeParams);
 
   const processFile = useCallback(
     (file: File) => {
@@ -131,8 +136,21 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
         });
       };
       reader.readAsDataURL(file);
+
+      // Upload to backend and store path in Start node params
+      const category = categorizeFile(file);
+      uploadFile(file)
+        .then((data) => {
+          updateNodeParams(START_NODE_ID, {
+            file_path: data.path,
+            file_category: category,
+          });
+        })
+        .catch((err) => {
+          console.debug(`Backend upload failed for "${file.name}":`, err);
+        });
     },
-    [onUpload],
+    [onUpload, updateNodeParams],
   );
 
   const handleDrop = useCallback(

@@ -79,3 +79,16 @@ export function fetchCachedFile(hash: string, extension?: string): Promise<Blob>
   const ext = extension ? `?ext=${encodeURIComponent(extension)}` : '';
   return requestBlob(`/preview/cache/${encodeURIComponent(hash)}${ext}`);
 }
+
+export async function uploadFile(file: File): Promise<{ filename: string; path: string; size: number }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const resp = await fetch(`${API_BASE}/upload/`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!resp.ok) {
+    throw new Error(`Upload failed: ${resp.statusText}`);
+  }
+  return resp.json();
+}
