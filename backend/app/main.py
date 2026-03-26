@@ -145,7 +145,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str) -> None:
                 )
 
                 if has_file and not session_state.is_running(session_id):
-                    asyncio.ensure_future(_auto_execute(session_id))
+                    task = asyncio.create_task(_auto_execute(session_id))
+                    task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
                 elif has_file and session_state.is_running(session_id):
                     session_state.request_rerun(session_id)
 
@@ -265,4 +266,5 @@ async def _auto_execute(session_id: str) -> None:
     finally:
         session_state.set_running(session_id, False)
         if session_state.consume_rerun(session_id):
-            asyncio.ensure_future(_auto_execute(session_id))
+            task = asyncio.create_task(_auto_execute(session_id))
+            task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)

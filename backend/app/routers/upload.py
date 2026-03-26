@@ -68,7 +68,7 @@ async def upload_file(
                     client_id=session_id,
                     node_id="__start__",
                     output_name="upload",
-                    cache_hash=unique_name.replace(ext, ""),
+                    cache_hash=unique_name.removesuffix(ext) if ext else unique_name,
                     file_path=str(dest),
                     data_type=data_type,
                     is_upload=True,
