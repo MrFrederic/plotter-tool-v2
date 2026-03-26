@@ -2,8 +2,8 @@
 from typing import Any
 
 import cv2
-import numpy as np
 
+from app.image_utils import decode_image, encode_image
 from app.plugin_base import (
     BasePlugin,
     ParameterDefinition,
@@ -50,7 +50,7 @@ class Threshold(BasePlugin):
         if raw is None:
             raise ValueError("'image' input is required")
 
-        img = np.array(raw, dtype=np.uint8)
+        img = decode_image(raw)
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -60,7 +60,7 @@ class Threshold(BasePlugin):
         mode = cv2.THRESH_BINARY_INV if invert else cv2.THRESH_BINARY
         _, result = cv2.threshold(img, thresh_val, 255, mode)
 
-        return {"image": result.tolist()}
+        return {"image": encode_image(result)}
 
 
 Plugin = Threshold

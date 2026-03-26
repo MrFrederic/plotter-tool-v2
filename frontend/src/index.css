@@ -32,6 +32,15 @@ body,
 }
 
 #root {
+  position: relative;
+}
+
+#root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99998;
   animation: microJitter 0.15s infinite steps(4);
 }
 

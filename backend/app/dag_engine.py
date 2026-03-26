@@ -138,13 +138,26 @@ class DAGEngine:
         Returns a mapping of ``{node_id: output_dict}`` for every node.
         """
         order = self.topological_sort()
+        failed_nodes: set[str] = set()
 
         for node_id in order:
             node = self.nodes[node_id]
+
+            # Skip nodes whose upstream dependency has errored
+            upstream_failures = failed_nodes & self._rev.get(node_id, set())
+            if upstream_failures:
+                failed_upstream = next(iter(upstream_failures))
+                node.status = NodeState.ERROR
+                node.error = f"Skipped: upstream node '{failed_upstream}' failed"
+                failed_nodes.add(node_id)
+                await self._broadcast(session_id, ws_manager, node)
+                continue
+
             plugin_cls = self.plugin_registry.get(node.plugin_name)
             if plugin_cls is None:
                 node.status = NodeState.ERROR
                 node.error = f"Unknown plugin '{node.plugin_name}'"
+                failed_nodes.add(node_id)
                 await self._broadcast(session_id, ws_manager, node)
                 continue
 
@@ -165,6 +178,7 @@ class DAGEngine:
             except Exception as exc:
                 node.status = NodeState.ERROR
                 node.error = f"Input resolution failed: {exc}"
+                failed_nodes.add(node_id)
                 await self._broadcast(session_id, ws_manager, node)
                 continue
 
@@ -172,7 +186,7 @@ class DAGEngine:
             exec_hash = plugin_cls.compute_hash(input_hashes, node.params)
 
             # ── check cache ───────────────────────────────────────────
-            cached = cache.retrieve_json(exec_hash)
+            cached = await cache.retrieve_json(exec_hash)
             if cached is not None:
                 node.status = NodeState.CACHED
                 node.result_hash = exec_hash
@@ -193,11 +207,12 @@ class DAGEngine:
             except Exception as exc:
                 node.status = NodeState.ERROR
                 node.error = str(exc)
+                failed_nodes.add(node_id)
                 await self._broadcast(session_id, ws_manager, node)
                 continue
 
             # ── store results ─────────────────────────────────────────
-            cache.store_json(exec_hash, output)
+            await cache.store_json(exec_hash, output)
             node.status = NodeState.DONE
             node.result_hash = exec_hash
             self._results[node_id] = output

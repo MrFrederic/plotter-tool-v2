@@ -1,4 +1,4 @@
-import { type FC } from 'react';
+import { memo, type FC } from 'react';
 import { getBezierPath, type EdgeProps } from '@xyflow/react';
 
 const CustomEdge: FC<EdgeProps> = ({
@@ -28,7 +28,7 @@ const CustomEdge: FC<EdgeProps> = ({
         d={edgePath}
         style={{
           ...style,
-          stroke: '#00f0ff',
+          stroke: 'var(--accent-cyan)',
           strokeWidth: 1.5,
           fill: 'none',
           strokeOpacity: 0.4,
@@ -37,7 +37,7 @@ const CustomEdge: FC<EdgeProps> = ({
       <path
         d={edgePath}
         style={{
-          stroke: '#00f0ff',
+          stroke: 'var(--accent-cyan)',
           strokeWidth: 1.5,
           fill: 'none',
           strokeDasharray: '6 4',
@@ -50,4 +50,4 @@ const CustomEdge: FC<EdgeProps> = ({
   );
 };
 
-export default CustomEdge;
+export default memo(CustomEdge);

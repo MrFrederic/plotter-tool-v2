@@ -8,6 +8,7 @@ import PreviewWindow from './components/Preview/PreviewWindow';
 import Toolbar from './components/Toolbar/Toolbar';
 import ScanlineOverlay from './components/common/ScanlineOverlay';
 import DecorativeOverlay from './components/common/DecorativeOverlay';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import useFlowStore from './store/useFlowStore';
 import usePipelineStore from './store/usePipelineStore';
 import { useWebSocketBridge } from './hooks/useWebSocketBridge';
@@ -24,7 +25,9 @@ function generateSessionId(): string {
 export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
   const nodes = useFlowStore((s) => s.nodes);
-  const nodeStatuses = useFlowStore((s) => s.nodeStatuses);
+  const selectedStatus = useFlowStore((s) =>
+    s.selectedNodeId ? s.nodeStatuses[s.selectedNodeId] : undefined,
+  );
   const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
   const sessionId = useMemo(generateSessionId, []);
   const wsRef = useWebSocketBridge(sessionId);
@@ -45,17 +48,21 @@ export default function App() {
     return selectedNode.data.outputs[0].type;
   }, [selectedNode]);
 
-  const loadPreview = useCallback(async (pipelineId: string, nodeId: string) => {
+  const loadPreview = useCallback(async (pipelineId: string, nodeId: string, signal?: AbortSignal) => {
     setPreviewLoading(true);
     setPreviewError(null);
     try {
-      const result = await fetchNodeResult(pipelineId, nodeId);
+      const result = await fetchNodeResult(pipelineId, nodeId, signal);
+      if (signal?.aborted) return;
       setPreviewData(result.data as Record<string, unknown>);
     } catch (err) {
+      if (signal?.aborted) return;
       setPreviewData(null);
       setPreviewError(err instanceof Error ? err.message : 'Failed to load preview');
     } finally {
-      setPreviewLoading(false);
+      if (!signal?.aborted) {
+        setPreviewLoading(false);
+      }
     }
   }, []);
 
@@ -65,14 +72,17 @@ export default function App() {
       return;
     }
 
-    const status = nodeStatuses[selectedNodeId];
-    if (status === 'DONE' || status === 'CACHED') {
+    let abortController: AbortController | undefined;
+    if (selectedStatus === 'DONE' || selectedStatus === 'CACHED') {
       setPreviewVisible(true);
       if (currentPipelineId) {
-        loadPreview(currentPipelineId, selectedNodeId);
+        abortController = new AbortController();
+        loadPreview(currentPipelineId, selectedNodeId, abortController.signal);
       }
     }
-  }, [selectedNodeId, nodeStatuses, currentPipelineId, loadPreview]);
+
+    return () => { abortController?.abort(); };
+  }, [selectedNodeId, selectedStatus, currentPipelineId, loadPreview]);
 
   return (
     <>
@@ -80,35 +90,45 @@ export default function App() {
         className={`app-layout ${selectedNodeId ? '' : 'app-layout--no-config'}`}
       >
         <div className="app-layout__sidebar">
-          <NodeInventory />
+          <ErrorBoundary name="NodeInventory">
+            <NodeInventory />
+          </ErrorBoundary>
         </div>
 
         <div className="app-layout__canvas">
           <Toolbar />
-          <NodeEditor />
+          <ErrorBoundary name="NodeEditor">
+            <NodeEditor />
+          </ErrorBoundary>
         </div>
 
         {selectedNodeId && (
           <div className="app-layout__config">
-            <ConfigPanel />
+            <ErrorBoundary name="ConfigPanel">
+              <ConfigPanel />
+            </ErrorBoundary>
           </div>
         )}
 
         <div className="app-layout__telemetry">
-          <TelemetryPanel />
+          <ErrorBoundary name="TelemetryPanel">
+            <TelemetryPanel />
+          </ErrorBoundary>
         </div>
       </div>
 
-      <PreviewWindow
-        visible={previewVisible}
-        onClose={() => setPreviewVisible(false)}
-        title="OUTPUT PREVIEW"
-        nodeId={selectedNodeId}
-        outputType={outputType}
-        resultData={previewData}
-        loading={previewLoading}
-        error={previewError}
-      />
+      <ErrorBoundary name="PreviewWindow">
+        <PreviewWindow
+          visible={previewVisible}
+          onClose={() => setPreviewVisible(false)}
+          title="OUTPUT PREVIEW"
+          nodeId={selectedNodeId}
+          outputType={outputType}
+          resultData={previewData}
+          loading={previewLoading}
+          error={previewError}
+        />
+      </ErrorBoundary>
 
       <ScanlineOverlay />
       <DecorativeOverlay />

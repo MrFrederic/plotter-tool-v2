@@ -27,6 +27,34 @@ async def _get_pipeline_or_404(
     return pipeline
 
 
+async def _flush_nodes_and_create_edges(nodes, client_ids, payload_edges, pipeline_id, db):
+    """Flush node instances, build client→server id map, create edges.
+
+    *client_ids* maps list index → client-provided id string (or ``None``).
+    """
+    client_id_map: dict[str, UUID] = {}
+    for idx, node in enumerate(nodes):
+        db.add(node)
+        await db.flush()
+        cid = client_ids.get(idx)
+        if cid is not None:
+            client_id_map[cid] = node.id
+
+    for edge_data in payload_edges:
+        source_id = client_id_map.get(str(edge_data.source_node_id), edge_data.source_node_id)
+        target_id = client_id_map.get(str(edge_data.target_node_id), edge_data.target_node_id)
+        edge = Edge(
+            pipeline_id=pipeline_id,
+            source_node_id=source_id,
+            source_output=edge_data.source_output,
+            target_node_id=target_id,
+            target_input=edge_data.target_input,
+        )
+        db.add(edge)
+
+    await db.flush()
+
+
 @router.post("/", response_model=PipelineRead, status_code=201)
 async def create_pipeline(
     payload: PipelineCreate, db: AsyncSession = Depends(get_db)
@@ -39,28 +67,21 @@ async def create_pipeline(
     db.add(pipeline)
     await db.flush()
 
-    for node_data in payload.nodes:
+    nodes = []
+    client_ids: dict[int, str | None] = {}
+    for idx, node_data in enumerate(payload.nodes):
         node = NodeInstance(
             pipeline_id=pipeline.id,
             plugin_name=node_data.plugin_name,
+            client_id=node_data.id,
             pos_x=node_data.pos_x,
             pos_y=node_data.pos_y,
             params=node_data.params,
         )
-        db.add(node)
-        await db.flush()
+        client_ids[idx] = node_data.id
+        nodes.append(node)
 
-    for edge_data in payload.edges:
-        edge = Edge(
-            pipeline_id=pipeline.id,
-            source_node_id=edge_data.source_node_id,
-            source_output=edge_data.source_output,
-            target_node_id=edge_data.target_node_id,
-            target_input=edge_data.target_input,
-        )
-        db.add(edge)
-
-    await db.flush()
+    await _flush_nodes_and_create_edges(nodes, client_ids, payload.edges, pipeline.id, db)
     return await _get_pipeline_or_404(pipeline.id, db)
 
 
@@ -106,29 +127,22 @@ async def update_pipeline(
             await db.delete(node)
         await db.flush()
 
-        for node_data in payload.nodes:
+        nodes = []
+        client_ids: dict[int, str | None] = {}
+        for idx, node_data in enumerate(payload.nodes):
             node = NodeInstance(
                 pipeline_id=pipeline.id,
                 plugin_name=node_data.plugin_name,
+                client_id=node_data.id,
                 pos_x=node_data.pos_x,
                 pos_y=node_data.pos_y,
                 params=node_data.params,
             )
-            db.add(node)
-            await db.flush()
+            client_ids[idx] = node_data.id
+            nodes.append(node)
 
-        if payload.edges is not None:
-            for edge_data in payload.edges:
-                edge = Edge(
-                    pipeline_id=pipeline.id,
-                    source_node_id=edge_data.source_node_id,
-                    source_output=edge_data.source_output,
-                    target_node_id=edge_data.target_node_id,
-                    target_input=edge_data.target_input,
-                )
-                db.add(edge)
-
-        await db.flush()
+        edges = payload.edges if payload.edges is not None else []
+        await _flush_nodes_and_create_edges(nodes, client_ids, edges, pipeline.id, db)
     elif payload.edges is not None:
         for edge in list(pipeline.edges):
             await db.delete(edge)

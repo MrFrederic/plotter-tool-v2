@@ -216,9 +216,9 @@
 }
 
 .gcode-toolpath__legend-rapid {
-  color: #ff3366;
+  color: var(--danger);
 }
 
 .gcode-toolpath__legend-feed {
-  color: #00f0ff;
+  color: var(--accent-cyan);
 }

@@ -2,8 +2,8 @@
 from typing import Any
 
 import cv2
-import numpy as np
 
+from app.image_utils import decode_image, encode_image
 from app.plugin_base import (
     BasePlugin,
     ParameterDefinition,
@@ -53,7 +53,7 @@ class EdgeDetection(BasePlugin):
         if raw is None:
             raise ValueError("'image' input is required")
 
-        img = np.array(raw, dtype=np.uint8)
+        img = decode_image(raw)
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -61,7 +61,7 @@ class EdgeDetection(BasePlugin):
         high = int(params.get("high_threshold", 150))
 
         edges = cv2.Canny(img, low, high)
-        return {"image": edges.tolist()}
+        return {"image": encode_image(edges)}
 
 
 Plugin = EdgeDetection

@@ -1,8 +1,8 @@
 """File-system cache for pipeline execution results."""
+import asyncio
 import json
 import logging
 import re
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +15,7 @@ class FileSystemCache:
     def __init__(self, base_dir: str | Path) -> None:
         self._base_dir = Path(base_dir)
         self._base_dir.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -27,49 +27,68 @@ class FileSystemCache:
 
     # ── binary data ───────────────────────────────────────────────────────
 
-    def store(self, hash_key: str, data: bytes, extension: str = ".bin") -> Path:
+    async def store(self, hash_key: str, data: bytes, extension: str = ".bin") -> Path:
         """Write *data* to disk and return the path."""
         path = self.get_path(hash_key, extension)
-        with self._lock:
-            path.write_bytes(data)
+        async with self._lock:
+            await asyncio.to_thread(path.write_bytes, data)
         logger.debug("Cached %s (%d bytes)", path.name, len(data))
         return path
 
-    def retrieve(self, hash_key: str, extension: str = ".bin") -> bytes | None:
+    async def retrieve(self, hash_key: str, extension: str = ".bin") -> bytes | None:
         """Read cached bytes or return ``None`` if absent."""
         path = self.get_path(hash_key, extension)
-        with self._lock:
-            if path.exists():
-                return path.read_bytes()
+        async with self._lock:
+            exists = await asyncio.to_thread(path.exists)
+            if exists:
+                return await asyncio.to_thread(path.read_bytes)
         return None
 
-    def exists(self, hash_key: str, extension: str = ".bin") -> bool:
+    async def exists(self, hash_key: str, extension: str = ".bin") -> bool:
         """Check whether a cache entry exists."""
-        return self.get_path(hash_key, extension).exists()
+        path = self.get_path(hash_key, extension)
+        async with self._lock:
+            return await asyncio.to_thread(path.exists)
 
     # ── JSON data ─────────────────────────────────────────────────────────
 
-    def store_json(self, hash_key: str, data: Any) -> Path:
+    async def store_json(self, hash_key: str, data: Any) -> Path:
         """Serialize *data* as JSON and store it."""
         raw = json.dumps(data, default=str).encode()
-        return self.store(hash_key, raw, extension=".json")
+        return await self.store(hash_key, raw, extension=".json")
 
-    def retrieve_json(self, hash_key: str) -> Any | None:
+    async def retrieve_json(self, hash_key: str) -> Any | None:
         """Deserialize and return cached JSON data, or ``None``."""
-        raw = self.retrieve(hash_key, extension=".json")
+        raw = await self.retrieve(hash_key, extension=".json")
         if raw is None:
             return None
         return json.loads(raw)
 
     # ── maintenance ───────────────────────────────────────────────────────
 
-    def clear(self) -> int:
+    async def clear(self) -> int:
         """Remove every file in the cache directory. Returns count deleted."""
         count = 0
-        with self._lock:
-            for item in self._base_dir.iterdir():
+        async with self._lock:
+            items = await asyncio.to_thread(lambda: list(self._base_dir.iterdir()))
+            for item in items:
                 if item.is_file():
-                    item.unlink()
+                    await asyncio.to_thread(item.unlink)
                     count += 1
         logger.info("Cache cleared – %d file(s) removed", count)
         return count
+
+
+# ── shared singleton ──────────────────────────────────────────────────────
+
+_shared_cache: FileSystemCache | None = None
+
+
+def get_shared_cache() -> FileSystemCache:
+    """Return the shared ``FileSystemCache`` singleton (lazy-initialised)."""
+    global _shared_cache
+    if _shared_cache is None:
+        from app.config import settings
+
+        _shared_cache = FileSystemCache(settings.CACHE_DIR)
+    return _shared_cache

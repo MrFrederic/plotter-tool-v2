@@ -1,6 +1,12 @@
+import asyncio
+import logging
 from typing import Any
 
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
+
+_HEARTBEAT_INTERVAL: float = 30.0
 
 
 class ConnectionManager:
@@ -8,6 +14,7 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self.active_connections: dict[str, list[WebSocket]] = {}
+        self._heartbeat_task: asyncio.Task[None] | None = None
 
     async def connect(self, session_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -35,3 +42,30 @@ class ConnectionManager:
         # Clean up broken connections
         for conn in broken:
             self.disconnect(session_id, conn)
+
+    # ── heartbeat ─────────────────────────────────────────────────────────
+
+    def start_heartbeat(self) -> None:
+        """Start the periodic heartbeat loop (call during app startup)."""
+        if self._heartbeat_task is None:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
+    def stop_heartbeat(self) -> None:
+        """Cancel the heartbeat loop (call during app shutdown)."""
+        if self._heartbeat_task is not None:
+            self._heartbeat_task.cancel()
+            self._heartbeat_task = None
+
+    async def _heartbeat_loop(self) -> None:
+        """Send periodic pings to all connected clients."""
+        try:
+            while True:
+                await asyncio.sleep(_HEARTBEAT_INTERVAL)
+                for session_id in list(self.active_connections):
+                    await self.broadcast_to_session(
+                        session_id, {"type": "ping"}
+                    )
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.warning("Heartbeat loop error", exc_info=True)

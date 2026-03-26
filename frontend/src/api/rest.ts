@@ -4,8 +4,8 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
   if (!res.ok) {
     throw new Error(`API ${res.status}: ${res.statusText}`);
@@ -67,9 +67,11 @@ export function fetchExecutionStatus(id: string): Promise<Record<string, unknown
 export function fetchNodeResult(
   pipelineId: string,
   nodeId: string,
+  signal?: AbortSignal,
 ): Promise<{ node_id: string; hash: string; data: Record<string, unknown> }> {
   return request<{ node_id: string; hash: string; data: Record<string, unknown> }>(
     `/preview/${encodeURIComponent(pipelineId)}/${encodeURIComponent(nodeId)}`,
+    signal ? { signal } : undefined,
   );
 }
 

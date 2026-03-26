@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,7 +35,7 @@ class Project(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -62,6 +62,7 @@ class Pipeline(Base):
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -91,8 +92,10 @@ class NodeInstance(Base):
         UUID(as_uuid=True),
         ForeignKey("pipelines.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     plugin_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pos_x: Mapped[float] = mapped_column(Float, default=0.0)
     pos_y: Mapped[float] = mapped_column(Float, default=0.0)
     params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -115,6 +118,12 @@ class NodeInstance(Base):
 
 class Edge(Base):
     __tablename__ = "edges"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_node_id", "source_output", "target_node_id", "target_input",
+            name="uq_edge_connection",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -123,17 +132,20 @@ class Edge(Base):
         UUID(as_uuid=True),
         ForeignKey("pipelines.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     source_node_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("node_instances.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     source_output: Mapped[str] = mapped_column(String(255), nullable=False)
     target_node_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("node_instances.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     target_input: Mapped[str] = mapped_column(String(255), nullable=False)
 
