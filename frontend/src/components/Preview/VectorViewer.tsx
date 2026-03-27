@@ -30,6 +30,8 @@ export default function VectorViewer({ data }: VectorViewerProps) {
       visible: true,
     }));
     setPaths(parsed);
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
   }, [data]);
 
   const bounds = useMemo(() => {

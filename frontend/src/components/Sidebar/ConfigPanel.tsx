@@ -2,13 +2,72 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
-import { uploadFile } from '../../api/rest';
+import { fetchNodeResult, uploadFile } from '../../api/rest';
 import type { FileCategory, UploadedFile } from '../../types';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'gif']);
 const VECTOR_EXTS = new Set(['svg', 'dxf', 'ai', 'eps']);
 const GCODE_EXTS = new Set(['gcode', 'nc', 'ngc', 'tap', 'cnc']);
 const TEXT_EXTS = new Set(['txt', 'md', 'log', 'csv', 'tsv', 'xml', 'json', 'yaml', 'yml']);
+
+function sanitizeName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'output';
+}
+
+function decodeBase64ToBlob(data: string, mimeType: string): Blob {
+  const rawData = data.includes(',') ? data.split(',')[1] : data;
+  const binary = atob(rawData);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+function buildDownloadAsset(
+  type: FileCategory,
+  value: unknown,
+): { blob: Blob; extension: string } {
+  if (type === 'image') {
+    if (typeof value !== 'string') {
+      throw new Error('Image output is missing or malformed.');
+    }
+    return { blob: decodeBase64ToBlob(value, 'image/png'), extension: 'png' };
+  }
+
+  if (type === 'vector') {
+    const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return { blob: new Blob([content], { type: 'image/svg+xml' }), extension: 'svg' };
+  }
+
+  if (type === 'gcode') {
+    const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return { blob: new Blob([content], { type: 'text/plain;charset=utf-8' }), extension: 'gcode' };
+  }
+
+  if (type === 'text') {
+    const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return { blob: new Blob([content], { type: 'text/plain;charset=utf-8' }), extension: 'txt' };
+  }
+
+  if (type === 'path') {
+    const content = JSON.stringify(value, null, 2);
+    return { blob: new Blob([content], { type: 'application/json' }), extension: 'json' };
+  }
+
+  if (typeof value === 'string') {
+    return { blob: new Blob([value], { type: 'text/plain;charset=utf-8' }), extension: 'txt' };
+  }
+
+  return {
+    blob: new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }),
+    extension: 'json',
+  };
+}
 
 function categorizeFile(file: File): FileCategory {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -28,6 +87,7 @@ export default function ConfigPanel() {
   const nodeErrors = useFlowStore((s) => s.nodeErrors);
   const uploadedFile = useFlowStore((s) => s.uploadedFile);
   const setUploadedFile = useFlowStore((s) => s.setUploadedFile);
+  const sessionId = usePipelineStore((s) => s.sessionId);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   if (!selectedNode) return null;
@@ -75,13 +135,7 @@ export default function ConfigPanel() {
       {/* End node: download area */}
       {isEnd && (
         <div className="config-panel__fields">
-          <div className="config-panel__download-section">
-            <div className="config-panel__download-icon">↓</div>
-            <div className="config-panel__download-label">
-              Connect processing nodes to the input ports.
-              Results will be available for download after execution.
-            </div>
-          </div>
+          <OutputDownloadArea sessionId={sessionId} />
         </div>
       )}
 
@@ -107,6 +161,112 @@ export default function ConfigPanel() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface OutputDownloadAreaProps {
+  sessionId: string;
+}
+
+function OutputDownloadArea({ sessionId }: OutputDownloadAreaProps) {
+  const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const incomingEdges = edges.filter((edge) => edge.target === END_NODE_ID);
+  const selectedEdge = incomingEdges.find((edge) => {
+    const candidateNode = nodes.find((node) => node.id === edge.source);
+    const candidateStatus = candidateNode?.data.status;
+    return candidateStatus === 'DONE' || candidateStatus === 'CACHED';
+  }) ?? incomingEdges[0] ?? null;
+  const sourceNode = selectedEdge
+    ? nodes.find((node) => node.id === selectedEdge.source)
+    : undefined;
+
+  const targetType = selectedEdge?.targetHandle ?? 'other';
+  const sourceStatus = sourceNode?.data.status ?? 'IDLE';
+  const isSourceReady = sourceStatus === 'DONE' || sourceStatus === 'CACHED';
+  const canDownload = Boolean(sourceNode && selectedEdge?.sourceHandle && isSourceReady && !isDownloading);
+
+  const handleDownload = useCallback(async () => {
+    if (!sourceNode || !selectedEdge?.sourceHandle) return;
+
+    setError(null);
+    setIsDownloading(true);
+
+    try {
+      const result = await fetchNodeResult(sessionId, sourceNode.id);
+      const value = result.data[selectedEdge.sourceHandle];
+      if (value === undefined || value === null) {
+        throw new Error(`Output port "${selectedEdge.sourceHandle}" is empty.`);
+      }
+
+      const outputType = (targetType as FileCategory) || 'other';
+      const { blob, extension } = buildDownloadAsset(outputType, value);
+      const baseName = sanitizeName(sourceNode.data.label);
+      const fileName = `${baseName}_${selectedEdge.sourceHandle}.${extension}`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      const message = downloadError instanceof Error
+        ? downloadError.message
+        : 'Failed to download output.';
+      setError(message);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [sessionId, selectedEdge, sourceNode, targetType]);
+
+  return (
+    <div className="config-panel__download-section">
+      <div className="config-panel__download-icon">↓</div>
+
+      {!selectedEdge && (
+        <div className="config-panel__download-label">
+          Connect any node output to this output node to enable download.
+        </div>
+      )}
+
+      {selectedEdge && sourceNode && (
+        <>
+          <div className="config-panel__download-meta">
+            <div>
+              SOURCE: <span>{sourceNode.data.label}</span>
+            </div>
+            <div>
+              PORT: <span>{selectedEdge.sourceHandle}</span>
+            </div>
+            <div>
+              STATUS: <span>{sourceStatus}</span>
+            </div>
+          </div>
+
+          <button
+            className="config-panel__download-button"
+            onClick={() => void handleDownload()}
+            disabled={!canDownload}
+          >
+            {isDownloading ? 'PREPARING…' : 'DOWNLOAD OUTPUT'}
+          </button>
+
+          {!isSourceReady && (
+            <div className="config-panel__download-label">
+              Execute pipeline first. Source node must be DONE or CACHED.
+            </div>
+          )}
+        </>
+      )}
+
+      {error && <div className="config-panel__download-error">{error}</div>}
     </div>
   );
 }

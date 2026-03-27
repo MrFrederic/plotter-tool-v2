@@ -1,5 +1,5 @@
 import { memo, type FC } from 'react';
-import { getBezierPath, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react';
 
 const CustomEdge: FC<EdgeProps> = ({
   id,
@@ -9,6 +9,9 @@ const CustomEdge: FC<EdgeProps> = ({
   targetY,
   sourcePosition,
   targetPosition,
+  markerStart,
+  markerEnd,
+  interactionWidth = 24,
   style = {},
 }) => {
   const [edgePath] = getBezierPath({
@@ -22,10 +25,12 @@ const CustomEdge: FC<EdgeProps> = ({
 
   return (
     <>
-      <path
+      <BaseEdge
         id={id}
-        className="react-flow__edge-path"
-        d={edgePath}
+        path={edgePath}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={interactionWidth}
         style={{
           ...style,
           stroke: 'var(--accent-cyan)',
@@ -44,6 +49,7 @@ const CustomEdge: FC<EdgeProps> = ({
           strokeDashoffset: 0,
           animation: 'edgeFlow 1.5s linear infinite',
           strokeOpacity: 0.8,
+          pointerEvents: 'none',
         }}
       />
     </>

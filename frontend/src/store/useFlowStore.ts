@@ -105,6 +105,7 @@ interface FlowState {
   nodes: Node<FlowNodeData>[];
   edges: Edge[];
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   nodeStatuses: Record<string, NodeStatus>;
   nodeErrors: Record<string, string>;
   pluginSchemas: PluginSchema[];
@@ -120,6 +121,7 @@ interface FlowState {
   setNodeStatus: (nodeId: string, status: NodeStatus) => void;
   setNodeError: (nodeId: string, error: string | null) => void;
   selectNode: (nodeId: string | null) => void;
+  selectEdge: (edgeId: string | null) => void;
   loadPluginSchemas: () => Promise<void>;
   setUploadedFile: (file: UploadedFile | null) => void;
   removeEdge: (edgeId: string) => void;
@@ -192,6 +194,7 @@ const useFlowStore = create<FlowState>((set, get) => ({
   nodes: [makeStartNode(), makeEndNode()],
   edges: [],
   selectedNodeId: null,
+  selectedEdgeId: null,
   nodeStatuses: {},
   nodeErrors: {},
   pluginSchemas: [],
@@ -208,7 +211,15 @@ const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   onEdgesChange: (changes) => {
-    set({ edges: applyEdgeChanges(changes, get().edges) });
+    const nextEdges = applyEdgeChanges(changes, get().edges);
+    const selectedEdgeId = get().selectedEdgeId;
+    set({
+      edges: nextEdges,
+      selectedEdgeId:
+        selectedEdgeId && !nextEdges.some((e) => e.id === selectedEdgeId)
+          ? null
+          : selectedEdgeId,
+    });
   },
 
   onConnect: (connection) => {
@@ -322,14 +333,29 @@ const useFlowStore = create<FlowState>((set, get) => ({
         (e) =>
           !selectedNodeIds.has(e.source) && !selectedNodeIds.has(e.target),
       );
-      set({ nodes: remainingNodes, edges: remainingEdges });
+      const selectedEdgeId = get().selectedEdgeId;
+      set({
+        nodes: remainingNodes,
+        edges: remainingEdges,
+        selectedEdgeId:
+          selectedEdgeId && !remainingEdges.some((e) => e.id === selectedEdgeId)
+            ? null
+            : selectedEdgeId,
+      });
       return;
     }
 
     // If no nodes selected, try removing selected edges
     const remainingEdges = edges.filter((e) => !e.selected);
     if (remainingEdges.length < edges.length) {
-      set({ edges: remainingEdges });
+      const selectedEdgeId = get().selectedEdgeId;
+      set({
+        edges: remainingEdges,
+        selectedEdgeId:
+          selectedEdgeId && !remainingEdges.some((e) => e.id === selectedEdgeId)
+            ? null
+            : selectedEdgeId,
+      });
     }
   },
 
@@ -366,6 +392,10 @@ const useFlowStore = create<FlowState>((set, get) => ({
     set({ selectedNodeId: nodeId });
   },
 
+  selectEdge: (edgeId) => {
+    set({ selectedEdgeId: edgeId });
+  },
+
   loadPluginSchemas: async () => {
     try {
       const schemas = await fetchPlugins();
@@ -383,7 +413,11 @@ const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   removeEdge: (edgeId) => {
-    set({ edges: get().edges.filter((e) => e.id !== edgeId) });
+    const remainingEdges = get().edges.filter((e) => e.id !== edgeId);
+    set({
+      edges: remainingEdges,
+      selectedEdgeId: get().selectedEdgeId === edgeId ? null : get().selectedEdgeId,
+    });
   },
 
   removeNode: (nodeId) => {
@@ -391,9 +425,14 @@ const useFlowStore = create<FlowState>((set, get) => ({
     const edges = get().edges.filter(
       (e) => e.source !== nodeId && e.target !== nodeId,
     );
+    const selectedEdgeId = get().selectedEdgeId;
     set({
       nodes: get().nodes.filter((n) => n.id !== nodeId),
       edges,
+      selectedEdgeId:
+        selectedEdgeId && !edges.some((e) => e.id === selectedEdgeId)
+          ? null
+          : selectedEdgeId,
     });
   },
 }));

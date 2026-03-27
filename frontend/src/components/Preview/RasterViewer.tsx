@@ -14,6 +14,18 @@ export default function RasterViewer({ data }: RasterViewerProps) {
   const [format, setFormat] = useState('');
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
+  const fitToViewport = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || dimensions.w <= 0 || dimensions.h <= 0) return;
+
+    const fitX = (container.clientWidth - 24) / dimensions.w;
+    const fitY = (container.clientHeight - 24) / dimensions.h;
+    const fitZoom = Math.min(fitX, fitY, 1);
+
+    setZoom(Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1);
+    setOffset({ x: 0, y: 0 });
+  }, [dimensions]);
+
   const renderImage = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -80,6 +92,18 @@ export default function RasterViewer({ data }: RasterViewerProps) {
     renderImage();
   }, [renderImage]);
 
+  useEffect(() => {
+    if (dimensions.w <= 0 || dimensions.h <= 0) return;
+    const raf = window.requestAnimationFrame(() => fitToViewport());
+    return () => window.cancelAnimationFrame(raf);
+  }, [dimensions, fitToViewport]);
+
+  useEffect(() => {
+    const onResize = () => fitToViewport();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [fitToViewport]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -109,9 +133,8 @@ export default function RasterViewer({ data }: RasterViewerProps) {
   }, []);
 
   const resetView = useCallback(() => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-  }, []);
+    fitToViewport();
+  }, [fitToViewport]);
 
   return (
     <div className="raster-viewer">

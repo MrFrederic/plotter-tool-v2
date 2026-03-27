@@ -42,6 +42,7 @@ export default function NodeEditor() {
   const onConnect = useFlowStore((s) => s.onConnect);
   const addNode = useFlowStore((s) => s.addNode);
   const selectNode = useFlowStore((s) => s.selectNode);
+  const selectEdge = useFlowStore((s) => s.selectEdge);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
   const removeNode = useFlowStore((s) => s.removeNode);
   const removeEdge = useFlowStore((s) => s.removeEdge);
@@ -93,14 +94,23 @@ export default function NodeEditor() {
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
       selectNode(node.id);
+      selectEdge(null);
     },
-    [selectNode],
+    [selectNode, selectEdge],
+  );
+
+  const onEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      selectEdge(edge.id);
+    },
+    [selectEdge],
   );
 
   const onPaneClick = useCallback(() => {
     selectNode(null);
+    selectEdge(null);
     closeCtx();
-  }, [selectNode, closeCtx]);
+  }, [selectNode, selectEdge, closeCtx]);
 
   /* ---- right-click on node ---- */
   const onNodeContextMenu = useCallback(
@@ -198,6 +208,7 @@ export default function NodeEditor() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
@@ -205,7 +216,7 @@ export default function NodeEditor() {
         edgeTypes={edgeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: 'custom', animated: true }}
+        defaultEdgeOptions={{ type: 'custom', animated: true, interactionWidth: 24 }}
         deleteKeyCode={null}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1a1a2e" />

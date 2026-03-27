@@ -362,3 +362,51 @@
   line-height: 1.6;
   padding: 0 4px;
 }
+
+.config-panel__download-meta {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  text-align: left;
+  font-size: 10px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-panel__download-meta span {
+  color: var(--text-primary);
+}
+
+.config-panel__download-button {
+  width: 100%;
+  border: 1px solid rgba(0, 255, 136, 0.5);
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--success);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.config-panel__download-button:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.14);
+  border-color: var(--success);
+}
+
+.config-panel__download-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.config-panel__download-error {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--danger);
+  text-align: left;
+  line-height: 1.4;
+}

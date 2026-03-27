@@ -17,10 +17,11 @@ import { fetchNodeResult } from './api/rest';
 
 export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
+  const selectedEdgeId = useFlowStore((s) => s.selectedEdgeId);
+  const selectEdge = useFlowStore((s) => s.selectEdge);
   const nodes = useFlowStore((s) => s.nodes);
-  const selectedStatus = useFlowStore((s) =>
-    s.selectedNodeId ? s.nodeStatuses[s.selectedNodeId] : undefined,
-  );
+  const edges = useFlowStore((s) => s.edges);
+  const nodeStatuses = useFlowStore((s) => s.nodeStatuses);
   const sessionId = usePipelineStore((s) => s.sessionId);
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
@@ -30,15 +31,31 @@ export default function App() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId],
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
   );
 
+  const previewNode = useMemo(
+    () => (selectedEdge ? nodes.find((n) => n.id === selectedEdge.source) ?? null : null),
+    [nodes, selectedEdge],
+  );
+
+  const previewNodeId = selectedEdge?.source ?? null;
+  const previewNodeStatus = previewNodeId ? nodeStatuses[previewNodeId] : undefined;
+
   const outputType = useMemo(() => {
-    if (!selectedNode?.data?.outputs?.length) return undefined;
-    return selectedNode.data.outputs[0].type;
-  }, [selectedNode]);
+    if (!previewNode?.data?.outputs?.length) return undefined;
+
+    if (selectedEdge?.sourceHandle) {
+      const matchingOutput = previewNode.data.outputs.find(
+        (output) => output.name === selectedEdge.sourceHandle,
+      );
+      if (matchingOutput) return matchingOutput.type;
+    }
+
+    return previewNode.data.outputs[0].type;
+  }, [previewNode, selectedEdge]);
 
   const loadPreview = useCallback(async (pipelineId: string, nodeId: string, signal?: AbortSignal) => {
     setPreviewLoading(true);
@@ -59,20 +76,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedNodeId) {
+    if (!selectedEdge || !previewNodeId) {
       setPreviewVisible(false);
+      setPreviewData(null);
+      setPreviewError(null);
       return;
     }
 
-    let abortController: AbortController | undefined;
-    if (selectedStatus === 'DONE' || selectedStatus === 'CACHED') {
-      setPreviewVisible(true);
-      abortController = new AbortController();
-      loadPreview(sessionId, selectedNodeId, abortController.signal);
+    setPreviewVisible(true);
+
+    if (previewNodeStatus !== 'DONE' && previewNodeStatus !== 'CACHED') {
+      setPreviewLoading(false);
+      setPreviewData(null);
+      setPreviewError(null);
+      return;
     }
 
+    const abortController = new AbortController();
+    loadPreview(sessionId, previewNodeId, abortController.signal);
+
     return () => { abortController?.abort(); };
-  }, [selectedNodeId, selectedStatus, sessionId, loadPreview]);
+  }, [selectedEdge, previewNodeId, previewNodeStatus, sessionId, loadPreview]);
 
   return (
     <>
@@ -110,9 +134,12 @@ export default function App() {
       <ErrorBoundary name="PreviewWindow">
         <PreviewWindow
           visible={previewVisible}
-          onClose={() => setPreviewVisible(false)}
-          title="OUTPUT PREVIEW"
-          nodeId={selectedNodeId}
+          onClose={() => {
+            setPreviewVisible(false);
+            selectEdge(null);
+          }}
+          title="CONNECTION PREVIEW"
+          nodeId={previewNodeId}
           outputType={outputType}
           resultData={previewData}
           loading={previewLoading}

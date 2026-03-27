@@ -29,7 +29,21 @@ export default function PreviewWindow({
 }: PreviewWindowProps) {
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [minimized, setMinimized] = useState(false);
+  const windowRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  const clampPosition = useCallback((x: number, y: number) => {
+    const el = windowRef.current;
+    const panelWidth = el?.offsetWidth ?? 640;
+    const panelHeight = el?.offsetHeight ?? 420;
+    const maxX = Math.max(8, window.innerWidth - panelWidth - 8);
+    const maxY = Math.max(8, window.innerHeight - panelHeight - 8);
+
+    return {
+      x: Math.min(Math.max(8, x), maxX),
+      y: Math.min(Math.max(8, y), maxY),
+    };
+  }, []);
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -48,9 +62,8 @@ export default function PreviewWindow({
       if (!dragRef.current) return;
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
-      const newX = Math.max(0, Math.min(window.innerWidth - 200, dragRef.current.origX + dx));
-      const newY = Math.max(0, Math.min(window.innerHeight - 50, dragRef.current.origY + dy));
-      setPosition({ x: newX, y: newY });
+      const next = clampPosition(dragRef.current.origX + dx, dragRef.current.origY + dy);
+      setPosition(next);
     };
 
     const onMouseUp = () => {
@@ -63,7 +76,35 @@ export default function PreviewWindow({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, []);
+  }, [clampPosition]);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const raf = window.requestAnimationFrame(() => {
+      const el = windowRef.current;
+      const panelWidth = el?.offsetWidth ?? 640;
+      const panelHeight = el?.offsetHeight ?? 420;
+      const centered = clampPosition(
+        Math.max(8, (window.innerWidth - panelWidth) / 2),
+        Math.max(8, (window.innerHeight - panelHeight) / 2),
+      );
+      setPosition(centered);
+    });
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [visible, clampPosition]);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const onResize = () => {
+      setPosition((prev) => clampPosition(prev.x, prev.y));
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [visible, clampPosition]);
 
   if (!visible) return null;
 
@@ -71,6 +112,7 @@ export default function PreviewWindow({
 
   return (
     <div
+      ref={windowRef}
       className={`preview-window ${minimized ? 'preview-window--minimized' : ''}`}
       style={{ left: position.x, top: position.y }}
     >

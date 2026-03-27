@@ -14,6 +14,8 @@ export function usePipelineSync(
   const edges = useFlowStore((s) => s.edges);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingStateRef = useRef<Record<string, unknown> | null>(null);
+  const pendingSignatureRef = useRef<string | null>(null);
+  const lastSentSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -35,22 +37,37 @@ export function usePipelineSync(
         pos_x: n.position.x,
         pos_y: n.position.y,
         params: n.data.params,
-      })),
+      })).sort((a, b) => a.id.localeCompare(b.id)),
       edges: syncEdges.map((e) => ({
         id: e.id,
         source_node_id: e.source,
         source_output: e.sourceHandle || 'output',
         target_node_id: e.target,
         target_input: e.targetHandle || 'input',
-      })),
+      })).sort((a, b) => a.id.localeCompare(b.id)),
     };
 
+    const signature = JSON.stringify({
+      nodes: pipelineState.nodes,
+      edges: pipelineState.edges,
+    });
+
+    if (
+      signature === pendingSignatureRef.current ||
+      signature === lastSentSignatureRef.current
+    ) {
+      return;
+    }
+
     pendingStateRef.current = pipelineState;
+    pendingSignatureRef.current = signature;
 
     debounceRef.current = setTimeout(() => {
       if (!wsRef.current) return;
       wsRef.current.send(pipelineState);
+      lastSentSignatureRef.current = signature;
       pendingStateRef.current = null;
+      pendingSignatureRef.current = null;
     }, 500);
 
     return () => {
@@ -64,8 +81,14 @@ export function usePipelineSync(
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       const ws = currentWsRef.current;
-      if (pendingStateRef.current && ws) {
+      if (
+        pendingStateRef.current &&
+        pendingSignatureRef.current &&
+        pendingSignatureRef.current !== lastSentSignatureRef.current &&
+        ws
+      ) {
         ws.send(pendingStateRef.current);
+        lastSentSignatureRef.current = pendingSignatureRef.current;
       }
     };
   }, [wsRef]);

@@ -131,7 +131,7 @@ function TextViewer({
               </div>
             );
           }}
-          style={{ height: '350px' }}
+          style={{ height: '100%' }}
         />
       </div>
     </div>
