@@ -1,19 +1,14 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './SvgViewer.css';
 
-interface SvgViewerProps {
-  data: unknown;
+function sanitizeSvg(svg: string): string {
+  return svg
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\s(href|xlink:href)\s*=\s*(['"])https?:\/\/.*?\2/gi, '');
 }
 
-interface ParsedSvg {
-  error: string | null;
-  content: string;
-  width: number;
-  height: number;
-  elementCount: number;
-}
-
-function parseSvgData(data: unknown): ParsedSvg {
+function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg {
   if (!data || typeof data !== 'string') {
     return {
       error: 'Invalid input: expected SVG string',
@@ -21,12 +16,15 @@ function parseSvgData(data: unknown): ParsedSvg {
       width: 100,
       height: 100,
       elementCount: 0,
+      geometryCount: 0,
+      useCanvasMode: false,
     };
   }
 
   try {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(data, 'image/svg+xml');
+    const sanitized = sanitizeSvg(data);
+    const doc = parser.parseFromString(sanitized, 'image/svg+xml');
 
     if (doc.getElementsByTagName('parsererror').length > 0) {
       return {
@@ -35,6 +33,8 @@ function parseSvgData(data: unknown): ParsedSvg {
         width: 100,
         height: 100,
         elementCount: 0,
+        geometryCount: 0,
+        useCanvasMode: false,
       };
     }
 
@@ -46,6 +46,8 @@ function parseSvgData(data: unknown): ParsedSvg {
         width: 100,
         height: 100,
         elementCount: 0,
+        geometryCount: 0,
+        useCanvasMode: false,
       };
     }
 
@@ -72,12 +74,25 @@ function parseSvgData(data: unknown): ParsedSvg {
       }
     }
 
+    const geometryCount = [
+      'path',
+      'line',
+      'polyline',
+      'polygon',
+      'circle',
+      'ellipse',
+      'rect',
+      'use',
+    ].reduce((count, tag) => count + svgElement.getElementsByTagName(tag).length, 0);
+
     return {
       error: null,
-      content: data,
+      content: sanitized,
       width,
       height,
-      elementCount: svgElement.childElementCount,
+      elementCount: svgElement.getElementsByTagName('*').length,
+      geometryCount,
+      useCanvasMode: geometryCount >= canvasGeometryThreshold,
     };
   } catch (err) {
     return {
@@ -86,57 +101,287 @@ function parseSvgData(data: unknown): ParsedSvg {
       width: 100,
       height: 100,
       elementCount: 0,
+      geometryCount: 0,
+      useCanvasMode: false,
     };
   }
 }
 
+interface SvgViewerProps {
+  data: unknown;
+}
+
+interface ParsedSvg {
+  error: string | null;
+  content: string;
+  width: number;
+  height: number;
+  elementCount: number;
+  geometryCount: number;
+  useCanvasMode: boolean;
+}
+
+interface CameraState {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+const SVG_CANVAS_GEOMETRY_THRESHOLD = 8000;
+const INTERACTION_IDLE_MS = 140;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function SvgViewer({ data }: SvgViewerProps) {
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const idleTimeoutRef = useRef<number | null>(null);
+  const isInteractingRef = useRef(false);
+
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('svgViewerTheme') as 'dark' | 'light') || 'dark';
   });
+  const [zoom, setZoom] = useState(1);
+  const [domOffset, setDomOffset] = useState({ x: 0, y: 0 });
+  const [bitmapError, setBitmapError] = useState<string | null>(null);
+  const [bitmapReady, setBitmapReady] = useState(false);
 
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const cameraRef = useRef<CameraState>({ zoom: 1, panX: 0, panY: 0 });
+  const bitmapRef = useRef<ImageBitmap | null>(null);
+
+  const parsed = useMemo(() => parseSvgData(data, SVG_CANVAS_GEOMETRY_THRESHOLD), [data]);
 
   useEffect(() => {
     localStorage.setItem('svgViewerTheme', theme);
   }, [theme]);
 
-  const parsed = useMemo(() => parseSvgData(data), [data]);
+  const scheduleCanvasDraw = useCallback(() => {
+    if (rafRef.current != null) return;
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((currentZoom) => Math.min(Math.max(currentZoom * delta, 0.1), 20));
-  }, []);
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: offset.x, origY: offset.y };
-  }, [offset]);
+      if (!bitmapRef.current) return;
+
+      const viewport = viewportRef.current;
+      const canvas = canvasRef.current;
+      if (!viewport || !canvas) return;
+
+      const rect = viewport.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      const dpr = window.devicePixelRatio || 1;
+
+      const targetWidth = Math.floor(width * dpr);
+      const targetHeight = Math.floor(height * dpr);
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const fitScale = Math.min((width * 0.9) / parsed.width, (height * 0.9) / parsed.height);
+      const scale = fitScale * cameraRef.current.zoom;
+      const drawWidth = parsed.width * scale;
+      const drawHeight = parsed.height * scale;
+      const drawX = width / 2 - drawWidth / 2 + cameraRef.current.panX;
+      const drawY = height / 2 - drawHeight / 2 + cameraRef.current.panY;
+
+      if (theme === 'light') {
+        ctx.fillStyle = '#d4d9de';
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      ctx.drawImage(bitmapRef.current, drawX, drawY, drawWidth, drawHeight);
+    });
+  }, [parsed.height, parsed.width, theme]);
 
   useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (!dragRef.current) return;
-      setOffset({
-        x: dragRef.current.origX + (e.clientX - dragRef.current.startX),
-        y: dragRef.current.origY + (e.clientY - dragRef.current.startY),
-      });
+    cameraRef.current = { zoom: 1, panX: 0, panY: 0 };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setZoom(1);
+    setDomOffset({ x: 0, y: 0 });
+    setBitmapError(null);
+  }, [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const buildBitmap = async () => {
+      if (!parsed.useCanvasMode || !parsed.content || parsed.error) {
+        if (bitmapRef.current) {
+          bitmapRef.current.close();
+          bitmapRef.current = null;
+        }
+        setBitmapError(null);
+        setBitmapReady(false);
+        return;
+      }
+
+      try {
+        const blob = new Blob([parsed.content], { type: 'image/svg+xml;charset=utf-8' });
+        const bitmap = await Promise.race([
+          createImageBitmap(blob),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Bitmap creation timeout')), 5000),
+          ),
+        ]);
+        if (cancelled) {
+          bitmap.close();
+          return;
+        }
+
+        if (bitmapRef.current) bitmapRef.current.close();
+        bitmapRef.current = bitmap;
+        setBitmapError(null);
+        setBitmapReady(true);
+        scheduleCanvasDraw();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        console.warn(`SVG bitmap creation failed: ${msg}. Falling back to DOM rendering.`);
+        setBitmapError(msg);
+        setBitmapReady(false);
+        if (bitmapRef.current) {
+          bitmapRef.current.close();
+          bitmapRef.current = null;
+        }
+      }
     };
 
-    const up = () => {
-      dragRef.current = null;
-    };
-
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
+    buildBitmap();
 
     return () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
+      cancelled = true;
+    };
+  }, [parsed.content, parsed.error, parsed.useCanvasMode, scheduleCanvasDraw]);
+
+  useEffect(() => {
+    if (!parsed.useCanvasMode) return;
+    scheduleCanvasDraw();
+  }, [parsed.useCanvasMode, theme, scheduleCanvasDraw, zoom]);
+
+  useEffect(() => {
+    if (!parsed.useCanvasMode) return;
+    const onResize = () => scheduleCanvasDraw();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [parsed.useCanvasMode, scheduleCanvasDraw]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current);
+      if (idleTimeoutRef.current != null) window.clearTimeout(idleTimeoutRef.current);
+      if (bitmapRef.current) {
+        bitmapRef.current.close();
+        bitmapRef.current = null;
+      }
     };
   }, []);
+
+  const endInteraction = useCallback(() => {
+    dragRef.current = null;
+    if (!isInteractingRef.current) return;
+
+    if (idleTimeoutRef.current != null) {
+      window.clearTimeout(idleTimeoutRef.current);
+    }
+
+    idleTimeoutRef.current = window.setTimeout(() => {
+      isInteractingRef.current = false;
+      scheduleCanvasDraw();
+    }, INTERACTION_IDLE_MS);
+  }, [scheduleCanvasDraw]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (idleTimeoutRef.current != null) {
+      window.clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+
+    isInteractingRef.current = true;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      panX: cameraRef.current.panX,
+      panY: cameraRef.current.panY,
+    };
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    cameraRef.current.panX = dragRef.current.panX + (e.clientX - dragRef.current.startX);
+    cameraRef.current.panY = dragRef.current.panY + (e.clientY - dragRef.current.startY);
+    if (!bitmapRef.current) {
+      setDomOffset({ x: cameraRef.current.panX, y: cameraRef.current.panY });
+    }
+    scheduleCanvasDraw();
+  }, [scheduleCanvasDraw]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    endInteraction();
+  }, [endInteraction]);
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left;
+    const pointerY = e.clientY - rect.top;
+
+    const prevZoom = cameraRef.current.zoom;
+    const nextZoom = clamp(prevZoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.05, 40);
+    if (Math.abs(nextZoom - prevZoom) < 0.000001) return;
+
+    if (idleTimeoutRef.current != null) {
+      window.clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+
+    isInteractingRef.current = true;
+
+    const factor = nextZoom / prevZoom;
+    cameraRef.current.panX = pointerX - (pointerX - cameraRef.current.panX) * factor;
+    cameraRef.current.panY = pointerY - (pointerY - cameraRef.current.panY) * factor;
+    cameraRef.current.zoom = nextZoom;
+    setZoom(nextZoom);
+    if (!bitmapRef.current) {
+      setDomOffset({ x: cameraRef.current.panX, y: cameraRef.current.panY });
+    }
+
+    scheduleCanvasDraw();
+    endInteraction();
+  }, [endInteraction, scheduleCanvasDraw]);
+
+  const resetView = useCallback(() => {
+    cameraRef.current = { zoom: 1, panX: 0, panY: 0 };
+    setZoom(1);
+    setDomOffset({ x: 0, y: 0 });
+    scheduleCanvasDraw();
+  }, [scheduleCanvasDraw]);
+
+  const domTransform = useMemo(
+    () => `translate(${domOffset.x}px, ${domOffset.y}px) scale(${zoom})`,
+    [domOffset.x, domOffset.y, zoom],
+  );
 
   if (parsed.error) {
     return (
@@ -163,25 +408,49 @@ export default function SvgViewer({ data }: SvgViewerProps) {
   return (
     <div className="svg-viewer">
       <div className="svg-viewer__toolbar">
-        <button className="svg-viewer__btn" onClick={() => setZoom((currentZoom) => Math.min(currentZoom * 1.25, 20))} title="Zoom in">+</button>
-        <button className="svg-viewer__btn" onClick={() => setZoom((currentZoom) => Math.max(currentZoom * 0.8, 0.1))} title="Zoom out">−</button>
-        <button className="svg-viewer__btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">◐</button>
-        <button className="svg-viewer__btn" onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }} title="Reset">⊡</button>
+        <button className="svg-viewer__btn" onClick={() => {
+          cameraRef.current.zoom = clamp(cameraRef.current.zoom * 1.25, 0.05, 40);
+          setZoom(cameraRef.current.zoom);
+          scheduleCanvasDraw();
+        }} title="Zoom in">+</button>
+        <button className="svg-viewer__btn" onClick={() => {
+          cameraRef.current.zoom = clamp(cameraRef.current.zoom * 0.8, 0.05, 40);
+          setZoom(cameraRef.current.zoom);
+          scheduleCanvasDraw();
+        }} title="Zoom out">−</button>
+        <button className="svg-viewer__btn" onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} title="Toggle theme">◐</button>
+        <button className="svg-viewer__btn" onClick={resetView} title="Reset">⊡</button>
         <span className="svg-viewer__zoom">{(zoom * 100).toFixed(0)}%</span>
-        <span className="svg-viewer__stats">{parsed.elementCount} elements</span>
+        <span className="svg-viewer__stats">{parsed.geometryCount} geom · {parsed.elementCount} elems</span>
       </div>
 
-      <div className={`svg-viewer__viewport svg-viewer__viewport--${theme}`} onWheel={handleWheel} onMouseDown={handleMouseDown}>
-        <div
-          className="svg-viewer__canvas"
-          style={{
-            width: parsed.width,
-            height: parsed.height,
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-          }}
-          dangerouslySetInnerHTML={{ __html: parsed.content }}
-        />
+      <div
+        ref={viewportRef}
+        className={`svg-viewer__viewport svg-viewer__viewport--${theme}`}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {parsed.useCanvasMode && bitmapReady && !bitmapError ? (
+          <canvas ref={canvasRef} className="svg-viewer__canvas-bitmap" />
+        ) : (
+          <div
+            className="svg-viewer__canvas"
+            style={{
+              width: parsed.width,
+              height: parsed.height,
+              transform: domTransform,
+            }}
+            dangerouslySetInnerHTML={{ __html: parsed.content }}
+          />
+        )}
       </div>
+
+      {parsed.useCanvasMode && bitmapReady && !bitmapError && (
+        <div className="svg-viewer__hint">HIGH-SCALE MODE ACTIVE · CANVAS RASTER PREVIEW</div>
+      )}
     </div>
   );
 }

@@ -59,6 +59,12 @@
   justify-content: center;
 }
 
+.vector-viewer__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .vector-viewer__viewport:active {
   cursor: grabbing;
 }
@@ -117,4 +123,12 @@
   height: 8px;
   display: inline-block;
   flex-shrink: 0;
+}
+
+.vector-viewer__hint {
+  font-size: 9px;
+  color: var(--accent-amber);
+  opacity: 0.85;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-color);
 }

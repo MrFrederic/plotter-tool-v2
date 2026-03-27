@@ -83,6 +83,12 @@
   background: transparent;
 }
 
+.svg-viewer__canvas-bitmap {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .svg-viewer__viewport--dark .svg-viewer__canvas {
   box-shadow: 0 0 0 1px var(--border-color);
   background: var(--bg-primary);
@@ -175,4 +181,12 @@
 
 .svg-viewer__viewport::-webkit-scrollbar-thumb:hover {
   background: var(--accent-cyan);
+}
+
+.svg-viewer__hint {
+  font-size: 9px;
+  color: var(--accent-amber);
+  opacity: 0.85;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-color);
 }

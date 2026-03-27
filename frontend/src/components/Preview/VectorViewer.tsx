@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './VectorViewer.css';
 
 interface VectorViewerProps {
@@ -15,6 +15,11 @@ interface LineSegment {
   from: [number, number];
   to: [number, number];
   meta: SegmentMeta;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  length: number;
 }
 
 interface ArcSegment {
@@ -24,13 +29,43 @@ interface ArcSegment {
   center: [number, number];
   clockwise: boolean;
   meta: SegmentMeta;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  radius: number;
 }
 
 type Segment = LineSegment | ArcSegment;
 
+interface PathBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 interface NormalizedPath {
   closed: boolean;
   segments: Segment[];
+  bounds: PathBounds;
+}
+
+interface PreprocessResult {
+  paths: NormalizedPath[];
+  totalSegments: number;
+  bounds: PathBounds;
+}
+
+interface CameraState {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+interface ViewportSize {
+  width: number;
+  height: number;
 }
 
 const PATH_COLORS = [
@@ -39,171 +74,315 @@ const PATH_COLORS = [
   '#cc66ff', '#ffcc33', '#33ff66', '#ff3399',
 ];
 
-const DEFAULT_META: SegmentMeta = { width: null, speed: null };
+const EMPTY_BOUNDS: PathBounds = {
+  minX: 0,
+  minY: 0,
+  maxX: 100,
+  maxY: 100,
+};
 
-function coerceMeta(raw: unknown): SegmentMeta {
-  if (!raw || typeof raw !== 'object') return DEFAULT_META;
-  const obj = raw as Record<string, unknown>;
+const INTERACTION_IDLE_MS = 140;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isBoundsVisible(
+  bounds: PathBounds,
+  camera: CameraState,
+  sceneCenterX: number,
+  sceneCenterY: number,
+  scale: number,
+  viewport: ViewportSize,
+): boolean {
+  const minScreenX = (bounds.minX - sceneCenterX) * scale + viewport.width / 2 + camera.panX;
+  const maxScreenX = (bounds.maxX - sceneCenterX) * scale + viewport.width / 2 + camera.panX;
+  const minScreenY = (bounds.minY - sceneCenterY) * scale + viewport.height / 2 + camera.panY;
+  const maxScreenY = (bounds.maxY - sceneCenterY) * scale + viewport.height / 2 + camera.panY;
+
+  return !(maxScreenX < 0 || minScreenX > viewport.width || maxScreenY < 0 || minScreenY > viewport.height);
+}
+
+function arcAngles(segment: ArcSegment): { start: number; end: number; anticlockwise: boolean } {
+  const start = Math.atan2(segment.from[1] - segment.center[1], segment.from[0] - segment.center[0]);
+  const end = Math.atan2(segment.to[1] - segment.center[1], segment.to[0] - segment.center[0]);
   return {
-    width: typeof obj.width === 'number' ? obj.width : null,
-    speed: typeof obj.speed === 'number' ? obj.speed : null,
+    start,
+    end,
+    anticlockwise: !segment.clockwise,
   };
 }
 
-function coerceXY(value: unknown): [number, number] {
-  if (Array.isArray(value) && value.length >= 2) {
-    const x = Number(value[0]);
-    const y = Number(value[1]);
-    return [Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0];
-  }
-  return [0, 0];
-}
-
-function legacyPointsToPath(points: unknown[]): NormalizedPath {
-  const parsedPoints = points.map(coerceXY);
-  const segments: LineSegment[] = [];
-  for (let index = 0; index < parsedPoints.length - 1; index += 1) {
-    segments.push({
-      type: 'line',
-      from: parsedPoints[index],
-      to: parsedPoints[index + 1],
-      meta: DEFAULT_META,
-    });
-  }
-  return { closed: false, segments };
-}
-
-function parsePath(item: unknown): NormalizedPath {
-  if (item && typeof item === 'object' && !Array.isArray(item)) {
-    const obj = item as Record<string, unknown>;
-    const closed = obj.closed === true;
-    const rawSegments = Array.isArray(obj.segments) ? obj.segments : [];
-
-    const segments: Segment[] = rawSegments.map((raw): Segment => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return { type: 'line', from: [0, 0], to: [0, 0], meta: DEFAULT_META };
-      }
-      const segment = raw as Record<string, unknown>;
-      const from = coerceXY(segment.from);
-      const to = coerceXY(segment.to);
-      const meta = coerceMeta(segment.meta);
-      if (segment.type === 'arc') {
-        return {
-          type: 'arc',
-          from,
-          to,
-          center: coerceXY(segment.center),
-          clockwise: segment.clockwise !== false,
-          meta,
-        };
-      }
-      return { type: 'line', from, to, meta };
-    });
-
-    return { closed, segments };
-  }
-
-  if (Array.isArray(item)) {
-    return legacyPointsToPath(item as unknown[]);
-  }
-
-  return { closed: false, segments: [] };
-}
-
-function buildPathD(path: NormalizedPath): string {
-  if (path.segments.length === 0) return '';
-
-  const commands: string[] = [];
-  let previousTo: [number, number] | null = null;
-
-  for (const segment of path.segments) {
-    if (!previousTo || previousTo[0] !== segment.from[0] || previousTo[1] !== segment.from[1]) {
-      commands.push(`M ${segment.from[0]} ${segment.from[1]}`);
-    }
-
-    if (segment.type === 'line') {
-      commands.push(`L ${segment.to[0]} ${segment.to[1]}`);
-    } else {
-      const dx = segment.from[0] - segment.center[0];
-      const dy = segment.from[1] - segment.center[1];
-      const radius = Math.sqrt(dx * dx + dy * dy);
-
-      const v1x = segment.from[0] - segment.center[0];
-      const v1y = segment.from[1] - segment.center[1];
-      const v2x = segment.to[0] - segment.center[0];
-      const v2y = segment.to[1] - segment.center[1];
-      const cross = v1x * v2y - v1y * v2x;
-
-      const sweepFlag = segment.clockwise ? 1 : 0;
-      const largeArcFlag = segment.clockwise ? (cross < 0 ? 1 : 0) : (cross > 0 ? 1 : 0);
-      commands.push(`A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${segment.to[0]} ${segment.to[1]}`);
-    }
-
-    previousTo = segment.to;
-  }
-
-  if (path.closed) {
-    commands.push('Z');
-  }
-
-  return commands.join(' ');
-}
-
-function collectPathPoints(path: NormalizedPath): [number, number][] {
-  const points: [number, number][] = [];
-  for (const segment of path.segments) {
-    points.push(segment.from, segment.to);
-    if (segment.type === 'arc') {
-      points.push(segment.center);
-    }
-  }
-  return points;
-}
-
 export default function VectorViewer({ data }: VectorViewerProps) {
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [hiddenPathIndexes, setHiddenPathIndexes] = useState<Set<number>>(new Set());
-  const svgRef = useRef<SVGSVGElement>(null);
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const interactionTimeoutRef = useRef<number | null>(null);
+  const requestIdRef = useRef(0);
+  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const isInteractingRef = useRef(false);
 
-  const parsedPaths = useMemo(
-    () => (Array.isArray(data) ? (data as unknown[]).map(parsePath) : []),
-    [data],
-  );
+  const [preprocessed, setPreprocessed] = useState<PreprocessResult>({
+    paths: [],
+    totalSegments: 0,
+    bounds: EMPTY_BOUNDS,
+  });
+  const [hiddenPathIndexes, setHiddenPathIndexes] = useState<Set<number>>(new Set());
+  const [zoom, setZoom] = useState(1);
+  const [drawStats, setDrawStats] = useState({ visiblePaths: 0, drawnSegments: 0 });
+
+  const cameraRef = useRef<CameraState>({ zoom: 1, panX: 0, panY: 0 });
 
   const visiblePaths = useMemo(
-    () => parsedPaths.map((path, index) => ({ path, visible: !hiddenPathIndexes.has(index) })),
-    [parsedPaths, hiddenPathIndexes],
+    () => preprocessed.paths.map((path, index) => ({ path, visible: !hiddenPathIndexes.has(index), index })),
+    [preprocessed.paths, hiddenPathIndexes],
   );
 
-  const bounds = useMemo(() => {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const item of visiblePaths) {
-      for (const [x, y] of collectPathPoints(item.path)) {
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-      return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
-    }
-
-    const pad = Math.max(maxX - minX, maxY - minY) * 0.05;
+  const sceneMetrics = useMemo(() => {
+    const sceneWidth = Math.max(1, preprocessed.bounds.maxX - preprocessed.bounds.minX);
+    const sceneHeight = Math.max(1, preprocessed.bounds.maxY - preprocessed.bounds.minY);
     return {
-      minX: minX - pad,
-      minY: minY - pad,
-      maxX: maxX + pad,
-      maxY: maxY + pad,
+      centerX: (preprocessed.bounds.minX + preprocessed.bounds.maxX) / 2,
+      centerY: (preprocessed.bounds.minY + preprocessed.bounds.maxY) / 2,
+      sceneWidth,
+      sceneHeight,
     };
-  }, [visiblePaths]);
+  }, [preprocessed.bounds]);
+
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+
+      const canvas = canvasRef.current;
+      const viewport = viewportRef.current;
+      if (!canvas || !viewport) return;
+
+      const rect = viewport.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      const dpr = window.devicePixelRatio || 1;
+
+      if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const viewportSize: ViewportSize = { width, height };
+      const fitScale = Math.min(
+        (width * 0.9) / sceneMetrics.sceneWidth,
+        (height * 0.9) / sceneMetrics.sceneHeight,
+      );
+      const effectiveScale = Math.max(0.00001, fitScale * cameraRef.current.zoom);
+      const lodThreshold = isInteractingRef.current
+        ? Math.max(1, 1.35 / effectiveScale)
+        : Math.max(0.3, 0.5 / effectiveScale);
+
+      let visibleCount = 0;
+      let drawnSegments = 0;
+
+      for (const { path, visible, index } of visiblePaths) {
+        if (!visible || path.segments.length === 0) continue;
+        if (!isBoundsVisible(path.bounds, cameraRef.current, sceneMetrics.centerX, sceneMetrics.centerY, effectiveScale, viewportSize)) {
+          continue;
+        }
+
+        visibleCount += 1;
+        ctx.beginPath();
+
+        for (const segment of path.segments) {
+          if (!isBoundsVisible(segment, cameraRef.current, sceneMetrics.centerX, sceneMetrics.centerY, effectiveScale, viewportSize)) {
+            continue;
+          }
+
+          if (segment.type === 'line' && segment.length < lodThreshold) {
+            continue;
+          }
+          if (segment.type === 'arc' && segment.radius * 2 < lodThreshold) {
+            continue;
+          }
+
+          const fromX = (segment.from[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+          const fromY = (segment.from[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+
+          if (segment.type === 'line') {
+            const toX = (segment.to[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+            const toY = (segment.to[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            drawnSegments += 1;
+            continue;
+          }
+
+          const centerX = (segment.center[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+          const centerY = (segment.center[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+          const radius = segment.radius * effectiveScale;
+          const angles = arcAngles(segment);
+          const start = Math.atan2(fromY - centerY, fromX - centerX);
+          const toX = (segment.to[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+          const toY = (segment.to[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+          const end = Math.atan2(toY - centerY, toX - centerX);
+
+          ctx.moveTo(fromX, fromY);
+          ctx.arc(centerX, centerY, radius, start, end, angles.anticlockwise);
+          drawnSegments += 1;
+        }
+
+        if (path.closed && path.segments.length > 1) {
+          const first = path.segments[0].from;
+          const closeX = (first[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+          const closeY = (first[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+          ctx.lineTo(closeX, closeY);
+        }
+
+        ctx.strokeStyle = PATH_COLORS[index % PATH_COLORS.length];
+        ctx.lineWidth = isInteractingRef.current ? 1 : 1.2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      setDrawStats((prev) => {
+        if (prev.visiblePaths === visibleCount && prev.drawnSegments === drawnSegments) {
+          return prev;
+        }
+        return { visiblePaths: visibleCount, drawnSegments };
+      });
+    });
+  }, [sceneMetrics.centerX, sceneMetrics.centerY, sceneMetrics.sceneHeight, sceneMetrics.sceneWidth, visiblePaths]);
+
+  useEffect(() => {
+    const worker = new Worker(new URL('./workers/vectorPreprocess.worker.ts', import.meta.url), { type: 'module' });
+    workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<{ requestId: number; payload: PreprocessResult }>) => {
+      if (event.data.requestId !== requestIdRef.current) return;
+      setPreprocessed(event.data.payload);
+      setHiddenPathIndexes(new Set());
+      cameraRef.current = { zoom: 1, panX: 0, panY: 0 };
+      setZoom(1);
+      scheduleDraw();
+    };
+
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [scheduleDraw]);
+
+  useEffect(() => {
+    const worker = workerRef.current;
+    if (!worker) return;
+
+    requestIdRef.current += 1;
+    worker.postMessage({ requestId: requestIdRef.current, data });
+  }, [data]);
+
+  useEffect(() => {
+    scheduleDraw();
+  }, [scheduleDraw, hiddenPathIndexes]);
+
+  useEffect(() => {
+    const onResize = () => scheduleDraw();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [scheduleDraw]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+      }
+      if (interactionTimeoutRef.current != null) {
+        window.clearTimeout(interactionTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const endInteraction = useCallback(() => {
+    dragRef.current = null;
+    if (!isInteractingRef.current) return;
+
+    if (interactionTimeoutRef.current != null) {
+      window.clearTimeout(interactionTimeoutRef.current);
+    }
+
+    interactionTimeoutRef.current = window.setTimeout(() => {
+      isInteractingRef.current = false;
+      scheduleDraw();
+    }, INTERACTION_IDLE_MS);
+  }, [scheduleDraw]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    if (interactionTimeoutRef.current != null) {
+      window.clearTimeout(interactionTimeoutRef.current);
+      interactionTimeoutRef.current = null;
+    }
+
+    isInteractingRef.current = true;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      panX: cameraRef.current.panX,
+      panY: cameraRef.current.panY,
+    };
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    cameraRef.current.panX = dragRef.current.panX + (e.clientX - dragRef.current.startX);
+    cameraRef.current.panY = dragRef.current.panY + (e.clientY - dragRef.current.startY);
+    scheduleDraw();
+  }, [scheduleDraw]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    endInteraction();
+  }, [endInteraction]);
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    if (interactionTimeoutRef.current != null) {
+      window.clearTimeout(interactionTimeoutRef.current);
+      interactionTimeoutRef.current = null;
+    }
+
+    isInteractingRef.current = true;
+
+    const rect = viewport.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left;
+    const pointerY = e.clientY - rect.top;
+
+    const prevZoom = cameraRef.current.zoom;
+    const nextZoom = clamp(prevZoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.05, 40);
+    if (Math.abs(nextZoom - prevZoom) < 0.000001) return;
+
+    const factor = nextZoom / prevZoom;
+    cameraRef.current.panX = pointerX - (pointerX - cameraRef.current.panX) * factor;
+    cameraRef.current.panY = pointerY - (pointerY - cameraRef.current.panY) * factor;
+    cameraRef.current.zoom = nextZoom;
+    setZoom(nextZoom);
+
+    scheduleDraw();
+    endInteraction();
+  }, [endInteraction, scheduleDraw]);
 
   const togglePath = useCallback((index: number) => {
     setHiddenPathIndexes((prev) => {
@@ -219,84 +398,58 @@ export default function VectorViewer({ data }: VectorViewerProps) {
 
   const toggleAll = useCallback(() => {
     const allVisible = visiblePaths.every((item) => item.visible);
-    setHiddenPathIndexes(allVisible ? new Set(parsedPaths.map((_, index) => index)) : new Set());
-  }, [parsedPaths, visiblePaths]);
+    setHiddenPathIndexes(allVisible ? new Set(preprocessed.paths.map((_, index) => index)) : new Set());
+  }, [preprocessed.paths, visiblePaths]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((currentZoom) => Math.min(Math.max(currentZoom * delta, 0.1), 20));
-  }, []);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: offset.x, origY: offset.y };
-  }, [offset]);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (!dragRef.current) return;
-      setOffset({
-        x: dragRef.current.origX + (e.clientX - dragRef.current.startX),
-        y: dragRef.current.origY + (e.clientY - dragRef.current.startY),
-      });
-    };
-
-    const up = () => {
-      dragRef.current = null;
-    };
-
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-
-    return () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-    };
-  }, []);
-
-  const totalSegments = parsedPaths.reduce((sum, path) => sum + path.segments.length, 0);
-  const viewBox = `${bounds.minX} ${bounds.minY} ${bounds.maxX - bounds.minX} ${bounds.maxY - bounds.minY}`;
+  const resetView = useCallback(() => {
+    cameraRef.current = { zoom: 1, panX: 0, panY: 0 };
+    setZoom(1);
+    scheduleDraw();
+  }, [scheduleDraw]);
 
   return (
     <div className="vector-viewer">
       <div className="vector-viewer__toolbar">
-        <button className="vector-viewer__btn" onClick={() => setZoom((currentZoom) => Math.min(currentZoom * 1.25, 20))}>+</button>
-        <button className="vector-viewer__btn" onClick={() => setZoom((currentZoom) => Math.max(currentZoom * 0.8, 0.1))}>−</button>
-        <button className="vector-viewer__btn" onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }}>⊡</button>
-        <span className="vector-viewer__zoom">{(zoom * 100).toFixed(0)}%</span>
-        <span className="vector-viewer__stats">{parsedPaths.length} paths · {totalSegments} segs</span>
-      </div>
-
-      <div className="vector-viewer__viewport" onWheel={handleWheel} onMouseDown={handleMouseDown}>
-        <svg
-          ref={svgRef}
-          className="vector-viewer__svg"
-          viewBox={viewBox}
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+        <button
+          className="vector-viewer__btn"
+          onClick={() => {
+            cameraRef.current.zoom = clamp(cameraRef.current.zoom * 1.25, 0.05, 40);
+            setZoom(cameraRef.current.zoom);
+            scheduleDraw();
           }}
         >
-          {visiblePaths.map((item, index) => {
-            if (!item.visible || item.path.segments.length === 0) return null;
-            const d = buildPathD(item.path);
-            if (!d) return null;
-            return (
-              <path
-                key={index}
-                d={d}
-                fill="none"
-                stroke={PATH_COLORS[index % PATH_COLORS.length]}
-                strokeWidth={Math.max(0.5 / zoom, 0.2)}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            );
-          })}
-        </svg>
+          +
+        </button>
+        <button
+          className="vector-viewer__btn"
+          onClick={() => {
+            cameraRef.current.zoom = clamp(cameraRef.current.zoom * 0.8, 0.05, 40);
+            setZoom(cameraRef.current.zoom);
+            scheduleDraw();
+          }}
+        >
+          −
+        </button>
+        <button className="vector-viewer__btn" onClick={resetView}>⊡</button>
+        <span className="vector-viewer__zoom">{(zoom * 100).toFixed(0)}%</span>
+        <span className="vector-viewer__stats">
+          {visiblePaths.length} paths · {preprocessed.totalSegments} segs · {drawStats.drawnSegments} drawn
+        </span>
       </div>
 
-      {parsedPaths.length > 0 && parsedPaths.length <= 50 && (
+      <div
+        ref={viewportRef}
+        className="vector-viewer__viewport"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <canvas ref={canvasRef} className="vector-viewer__canvas" />
+      </div>
+
+      {preprocessed.paths.length > 0 && preprocessed.paths.length <= 50 && (
         <div className="vector-viewer__legend">
           <button className="vector-viewer__legend-toggle" onClick={toggleAll}>
             {visiblePaths.every((item) => item.visible) ? '☑' : '☐'} ALL
@@ -314,7 +467,10 @@ export default function VectorViewer({ data }: VectorViewerProps) {
           ))}
         </div>
       )}
+
+      {preprocessed.totalSegments > 150000 && (
+        <div className="vector-viewer__hint">INTERACTIVE LOD ACTIVE · FULL DETAIL RESTORES AFTER INPUT IDLE</div>
+      )}
     </div>
   );
 }
-
