@@ -1,0 +1,158 @@
+.svg-viewer {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.svg-viewer__toolbar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.svg-viewer__btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  font-weight: 500;
+}
+
+.svg-viewer__btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.svg-viewer__btn:active {
+  transform: scale(0.95);
+}
+
+.svg-viewer__zoom {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 4px;
+  min-width: 40px;
+}
+
+.svg-viewer__stats {
+  font-size: 10px;
+  color: var(--accent-amber);
+  margin-left: auto;
+}
+
+.svg-viewer__viewport {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svg-viewer__viewport:active {
+  cursor: grabbing;
+}
+
+.svg-viewer__svg {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  transform-origin: center center;
+  /* Prevent any default browser styling of SVG */
+  background: transparent;
+}
+
+/* Error state */
+.svg-viewer__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: 16px;
+}
+
+.svg-viewer__error-icon {
+  font-size: 32px;
+  color: #ff4466;
+  opacity: 0.8;
+}
+
+.svg-viewer__error-message {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 300px;
+  font-family: 'Courier New', monospace;
+  word-break: break-word;
+}
+
+/* Empty state */
+.svg-viewer__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: 16px;
+}
+
+.svg-viewer__empty-icon {
+  font-size: 32px;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.svg-viewer__empty-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+/* SVG-specific styling within viewport */
+.svg-viewer__svg * {
+  /* Allow SVG elements to inherit colors without interference */
+}
+
+/* Scrollbar styling for consistency */
+.svg-viewer__viewport::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.svg-viewer__viewport::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.svg-viewer__viewport::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
+.svg-viewer__viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
+}

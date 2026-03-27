@@ -1,0 +1,68 @@
+.other-viewer {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.other-viewer__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.other-viewer__label {
+  color: var(--text-dim);
+}
+
+.other-viewer__value {
+  color: var(--accent-amber);
+  font-family: 'Courier New', monospace;
+}
+
+.other-viewer__sep {
+  color: var(--border-color);
+}
+
+.other-viewer__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  background: #0a0a12;
+}
+
+.other-viewer__content::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.other-viewer__content::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.other-viewer__content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
+.other-viewer__content::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
+}
+
+.other-viewer__pre {
+  margin: 0;
+  padding: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c8c8d0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

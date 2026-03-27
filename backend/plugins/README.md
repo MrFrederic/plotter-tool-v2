@@ -61,7 +61,7 @@ Each `PortType` has a standard internal representation used between plugins:
 | Image | `PortType.IMAGE` | Base64-encoded PNG string | Raster image encoded via `app.image_utils.encode_image()` |
 | Vector | `PortType.VECTOR` | SVG XML string (UTF-8) | Complete SVG document as a text string |
 | G-code | `PortType.GCODE` | Plain text string | G-code instructions with `\n` line endings |
-| Path | `PortType.PATH` | `list[list[list[float]]]` | List of paths, each a list of `[x, y]` coordinate pairs |
+| Path | `PortType.PATH` | `list[PathObject]` | List of path objects; each has `closed: bool` and `segments: list[Segment]`. A **line segment** carries `type`, `from`, `to`, and `meta` (`width`, `speed`). An **arc segment** additionally carries `center` and `clockwise`. Both `meta` fields default to `null` when omitted. Old `list[list[list[float]]]` inputs are automatically up-converted to straight line segments with `null` metadata. |
 | Text | `PortType.TEXT` | Plain text string | Arbitrary text content |
 | Other | `PortType.OTHER` | Any | Unconstrained data for custom workflows |
 
@@ -91,7 +91,7 @@ The `Pipeline Input` plugin (`pipeline_input.py`) is a special built-in plugin t
 | `image` | image | Loads any image format via cv2, encodes to base64 PNG |
 | `vector` | vector | Reads SVG file as UTF-8 text, validates XML structure |
 | `gcode` | gcode | Reads text file, strips trailing whitespace per line, normalizes to `\n` |
-| `path` | path | Reads JSON, validates nested `list[list[list[float]]]` structure |
+| `path` | path | Reads JSON, validates and normalises to segment-based path format; backward-compatible with old `list[list[list[float]]]` point-list input |
 | `text` | text | Reads file as UTF-8 text |
 | `other` | other | Attempts JSON parse, falls back to UTF-8 decoded string |
 

@@ -18,6 +18,112 @@ from app.plugin_base import (
 ALLOWED_BASE = Path(settings.CACHE_DIR).resolve()
 
 
+# ---------------------------------------------------------------------------
+# Path normalisation helpers
+# ---------------------------------------------------------------------------
+
+def _parse_xy(value: object, label: str) -> list[float]:
+    """Coerce *value* to a validated [x, y] pair."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{label} must be [x, y]")
+    try:
+        return [float(value[0]), float(value[1])]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} contains non-numeric values") from exc
+
+
+def _parse_meta(meta: object) -> dict[str, float | None]:
+    """Normalise a segment meta dict; missing keys default to None."""
+    if meta is None:
+        return {"width": None, "speed": None}
+    if not isinstance(meta, dict):
+        raise ValueError("Segment 'meta' must be an object or null")
+    width = meta.get("width")
+    speed = meta.get("speed")
+    return {
+        "width": float(width) if width is not None else None,
+        "speed": float(speed) if speed is not None else None,
+    }
+
+
+def _normalize_segment(seg: object, path_i: int, seg_j: int) -> dict[str, object]:
+    """Return a validated, normalised segment dict."""
+    ctx = f"path[{path_i}].segments[{seg_j}]"
+    if not isinstance(seg, dict):
+        raise ValueError(f"{ctx} must be an object")
+    seg_type = seg.get("type")
+    if seg_type not in ("line", "arc"):
+        raise ValueError(f"{ctx}.type must be 'line' or 'arc'")
+    from_pt = _parse_xy(seg.get("from"), f"{ctx}.from")
+    to_pt = _parse_xy(seg.get("to"), f"{ctx}.to")
+    meta = _parse_meta(seg.get("meta"))
+    if seg_type == "line":
+        return {"type": "line", "from": from_pt, "to": to_pt, "meta": meta}
+    # arc
+    center = _parse_xy(seg.get("center"), f"{ctx}.center")
+    clockwise = seg.get("clockwise", True)
+    if not isinstance(clockwise, bool):
+        raise ValueError(f"{ctx}.clockwise must be a boolean")
+    return {
+        "type": "arc",
+        "from": from_pt,
+        "to": to_pt,
+        "center": center,
+        "clockwise": clockwise,
+        "meta": meta,
+    }
+
+
+def _points_to_segments(points: list[list[float]]) -> list[dict[str, object]]:
+    """Convert legacy [x,y] point-list into straight line segments with null meta."""
+    segments: list[dict[str, object]] = []
+    for k in range(len(points) - 1):
+        segments.append({
+            "type": "line",
+            "from": points[k],
+            "to": points[k + 1],
+            "meta": {"width": None, "speed": None},
+        })
+    return segments
+
+
+def _normalize_paths(data: list[object]) -> list[dict[str, object]]:
+    """Normalise raw path data to the canonical segment-based format.
+
+    Accepts either:
+      - New format: list of ``{"closed": bool, "segments": [...]}`` objects.
+      - Legacy format: ``list[list[list[float]]]`` (point lists).
+
+    Returns a list of path objects conforming to the new convention.
+    """
+    result: list[dict[str, object]] = []
+    for i, path_item in enumerate(data):
+        # ------------------------------------------------------------------
+        # New format: path_item is a dict with a 'segments' key
+        # ------------------------------------------------------------------
+        if isinstance(path_item, dict):
+            segments_raw = path_item.get("segments")
+            if not isinstance(segments_raw, list):
+                raise ValueError(f"path[{i}].segments must be a list")
+            closed = path_item.get("closed", False)
+            if not isinstance(closed, bool):
+                raise ValueError(f"path[{i}].closed must be a boolean")
+            segments = [_normalize_segment(s, i, j) for j, s in enumerate(segments_raw)]
+            result.append({"closed": closed, "segments": segments})
+        # ------------------------------------------------------------------
+        # Legacy format: path_item is a list of [x, y] points
+        # ------------------------------------------------------------------
+        elif isinstance(path_item, list):
+            validated_pts: list[list[float]] = []
+            for j, point in enumerate(path_item):
+                validated_pts.append(_parse_xy(point, f"path[{i}][{j}]"))
+            segments = _points_to_segments(validated_pts)
+            result.append({"closed": False, "segments": segments})
+        else:
+            raise ValueError(f"path[{i}] must be a list of points or a path object")
+    return result
+
+
 class PipelineInput(BasePlugin):
     @classmethod
     def schema(cls) -> PluginSchema:
@@ -111,23 +217,7 @@ class PipelineInput(BasePlugin):
         if not isinstance(data, list):
             raise ValueError("Path data must be a list of paths")
 
-        validated: list[list[list[float]]] = []
-        for i, path_item in enumerate(data):
-            if not isinstance(path_item, list):
-                raise ValueError(f"Path at index {i} must be a list of points")
-            validated_path: list[list[float]] = []
-            for j, point in enumerate(path_item):
-                if not isinstance(point, list) or len(point) != 2:
-                    raise ValueError(f"Point at path[{i}][{j}] must be [x, y]")
-                try:
-                    validated_path.append([float(point[0]), float(point[1])])
-                except (TypeError, ValueError) as exc:
-                    raise ValueError(
-                        f"Point at path[{i}][{j}] contains non-numeric values"
-                    ) from exc
-            validated.append(validated_path)
-
-        return {"paths": validated}
+        return {"paths": _normalize_paths(data)}
 
     @staticmethod
     def _load_text(resolved: Path) -> dict[str, Any]:

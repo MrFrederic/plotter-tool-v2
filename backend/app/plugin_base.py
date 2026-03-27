@@ -12,7 +12,7 @@ class PortType(str, Enum):
     IMAGE = "image"      # Raster image as pixel data
     VECTOR = "vector"    # Vector image, a list of SVG objects such as paths, text, shapes
     GCODE = "gcode"      # A set of G-code instructions
-    PATH = "path"        # List of point lists (supports native curves)
+    PATH = "path"        # List of paths; each path has segments (line or arc) with per-segment metadata
     TEXT = "text"         # Arbitrary text
     OTHER = "other"      # Some other arbitrary data
 

@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-
 function generateSerial(): string {
   const hex = () =>
     Math.floor(Math.random() * 0xffff)
@@ -9,13 +7,11 @@ function generateSerial(): string {
   return `${hex()}-${hex()}-${hex()}`;
 }
 
-export default function DecorativeOverlay() {
-  const serial = useMemo(() => generateSerial(), []);
-  const buildId = useMemo(
-    () => `BUILD ${Math.floor(Math.random() * 9000 + 1000)}.${Math.floor(Math.random() * 100)}`,
-    [],
-  );
+// Generated once at module load — stable across re-renders without any hook
+const OVERLAY_SERIAL = generateSerial();
+const OVERLAY_BUILD_ID = `BUILD ${Math.floor(Math.random() * 9000 + 1000)}.${Math.floor(Math.random() * 100)}`;
 
+export default function DecorativeOverlay() {
   return (
     <div
       style={{
@@ -40,8 +36,8 @@ export default function DecorativeOverlay() {
         }}
       >
         <div>┌ SYS.PLOTTER.v2</div>
-        <div>│ {buildId}</div>
-        <div>│ S/N {serial}</div>
+        <div>│ {OVERLAY_BUILD_ID}</div>
+        <div>│ S/N {OVERLAY_SERIAL}</div>
       </div>
 
       {/* Bottom-right corner markers */}

@@ -299,13 +299,20 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
       };
       reader.readAsDataURL(file);
 
-      // Upload to backend and store path in Start node params
+      // Categorize and set file_category IMMEDIATELY (synchronously) to prevent race condition
+      // where pipeline executes before parameter update completes. If set only in the async
+      // uploadFile callback, the backend may execute with file_category=undefined, defaulting
+      // to "other" type and breaking preview renderers expecting text/gcode/vector format.
       const category = categorizeFile(file);
+      updateNodeParams(START_NODE_ID, {
+        file_category: category,
+      });
+
+      // Upload to backend and store path in Start node params (async)
       uploadFile(file, sessionId)
         .then((data) => {
           updateNodeParams(START_NODE_ID, {
             file_path: data.path,
-            file_category: category,
           });
         })
         .catch((err) => {

@@ -5,8 +5,15 @@ interface TextViewerProps {
   data: unknown;
 }
 
+function toDisplayString(data: unknown): string {
+  if (typeof data === 'string') return data;
+  if (data === null || data === undefined) return '';
+  if (typeof data === 'object') return JSON.stringify(data, null, 2);
+  return String(data);
+}
+
 export default function TextViewer({ data }: TextViewerProps) {
-  const text = typeof data === 'string' ? data : String(data ?? '');
+  const text = toDisplayString(data);
 
   const lines = useMemo(() => text.split('\n'), [text]);
 

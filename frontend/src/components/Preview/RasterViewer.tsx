@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import './RasterViewer.css';
 
 interface RasterViewerProps {
@@ -10,57 +10,65 @@ export default function RasterViewer({ data }: RasterViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
-  const [format, setFormat] = useState('');
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  const fitToViewport = useCallback(() => {
-    const container = containerRef.current;
-    if (!container || dimensions.w <= 0 || dimensions.h <= 0) return;
+  // Synchronously parse array data — no setState needed
+  const arrayInfo = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const rows = data as number[][][] | number[][];
+    const height = rows.length;
+    const firstRow = rows[0];
+    if (!Array.isArray(firstRow)) return null;
+    const isGrayscale = typeof firstRow[0] === 'number';
+    const width = isGrayscale ? firstRow.length : (firstRow as number[][]).length;
+    return { width, height, isGrayscale };
+  }, [data]);
 
-    const fitX = (container.clientWidth - 24) / dimensions.w;
-    const fitY = (container.clientHeight - 24) / dimensions.h;
-    const fitZoom = Math.min(fitX, fitY, 1);
+  // Load base64 image asynchronously — setState only fires inside img.onload, never synchronously
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (typeof data !== 'string') return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => { if (!cancelled) setLoadedImage(img); };
+    img.src = data.startsWith('data:') ? data : `data:image/png;base64,${data}`;
+    return () => { cancelled = true; };
+  }, [data]);
 
-    setZoom(Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1);
-    setOffset({ x: 0, y: 0 });
-  }, [dimensions]);
+  // Derived dimensions — no setState
+  const dimensions = useMemo(() => {
+    if (arrayInfo) return { w: arrayInfo.width, h: arrayInfo.height };
+    if (typeof data === 'string' && loadedImage) return { w: loadedImage.width, h: loadedImage.height };
+    return { w: 0, h: 0 };
+  }, [arrayInfo, loadedImage, data]);
 
-  const renderImage = useCallback(() => {
+  // Derived format — no setState
+  const format = useMemo(() => {
+    if (arrayInfo) return arrayInfo.isGrayscale ? 'grayscale' : 'RGB';
+    if (typeof data === 'string' && loadedImage) return 'encoded';
+    return '';
+  }, [arrayInfo, loadedImage, data]);
+
+  // Draw to canvas — pure DOM mutation, no setState
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle base64 string
-    if (typeof data === 'string') {
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        setDimensions({ w: img.width, h: img.height });
-        setFormat('encoded');
-      };
-      const src = data.startsWith('data:') ? data : `data:image/png;base64,${data}`;
-      img.src = src;
+    if (typeof data === 'string' && loadedImage) {
+      canvas.width = loadedImage.width;
+      canvas.height = loadedImage.height;
+      ctx.drawImage(loadedImage, 0, 0);
       return;
     }
 
-    // Handle 2D pixel array (list of rows)
-    if (Array.isArray(data) && data.length > 0) {
+    if (arrayInfo) {
+      const { width, height, isGrayscale } = arrayInfo;
       const rows = data as number[][][] | number[][];
-      const height = rows.length;
-      const firstRow = rows[0];
-      if (!Array.isArray(firstRow)) return;
-
-      const isGrayscale = typeof firstRow[0] === 'number';
-      const width = isGrayscale ? firstRow.length : (firstRow as number[][]).length;
-
       canvas.width = width;
       canvas.height = height;
       const imageData = ctx.createImageData(width, height);
-
       for (let y = 0; y < height; y++) {
         const row = rows[y];
         for (let x = 0; x < width; x++) {
@@ -80,17 +88,21 @@ export default function RasterViewer({ data }: RasterViewerProps) {
           imageData.data[idx + 3] = 255;
         }
       }
-
       ctx.putImageData(imageData, 0, 0);
-      setDimensions({ w: width, h: height });
-      setFormat(isGrayscale ? 'grayscale' : 'RGB');
-      return;
     }
-  }, [data]);
+  }, [arrayInfo, loadedImage, data]);
 
-  useEffect(() => {
-    renderImage();
-  }, [renderImage]);
+  const fitToViewport = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || dimensions.w <= 0 || dimensions.h <= 0) return;
+
+    const fitX = (container.clientWidth - 24) / dimensions.w;
+    const fitY = (container.clientHeight - 24) / dimensions.h;
+    const fitZoom = Math.min(fitX, fitY, 1);
+
+    setZoom(Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1);
+    setOffset({ x: 0, y: 0 });
+  }, [dimensions]);
 
   useEffect(() => {
     if (dimensions.w <= 0 || dimensions.h <= 0) return;
