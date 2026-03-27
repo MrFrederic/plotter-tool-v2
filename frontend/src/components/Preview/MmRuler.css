@@ -1,0 +1,73 @@
+.mm-ruler {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.mm-ruler__h {
+  position: absolute;
+  top: 0;
+  left: var(--ruler-size, 20px);
+  overflow: hidden;
+  background: rgba(10, 10, 20, 0.75);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.mm-ruler__v {
+  position: absolute;
+  left: 0;
+  overflow: hidden;
+  background: rgba(10, 10, 20, 0.75);
+  border-right: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.mm-ruler__corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--ruler-size, 20px);
+  height: var(--ruler-size, 20px);
+  background: rgba(10, 10, 20, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(0, 240, 255, 0.12);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.mm-ruler__unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  color: var(--accent-cyan, #00f0ff);
+  line-height: 1;
+  letter-spacing: 0.5px;
+}
+
+.mm-ruler__step {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 5px;
+  color: var(--text-dim, rgba(0, 240, 255, 0.4));
+  line-height: 1;
+}
+
+.mm-ruler__tick {
+  stroke: rgba(0, 240, 255, 0.3);
+  stroke-width: 1;
+}
+
+.mm-ruler__tick--major {
+  stroke: rgba(0, 240, 255, 0.55);
+}
+
+.mm-ruler__label {
+  fill: rgba(0, 240, 255, 0.65);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  dominant-baseline: auto;
+}
+
+.mm-ruler__label--v {
+  text-anchor: middle;
+}

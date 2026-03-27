@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import './GCodeViewer.css';
+import MmRuler from './MmRuler';
 
 interface GCodeViewerProps {
   data: string;
@@ -57,6 +58,15 @@ export default function GCodeViewer({ data }: GCodeViewerProps) {
     return segs;
   }, [lines]);
 
+  const gcodeUnit = useMemo<'mm' | 'inch' | null>(() => {
+    for (const line of lines) {
+      const s = line.raw.trim().toUpperCase();
+      if (s.startsWith('G21')) return 'mm';
+      if (s.startsWith('G20')) return 'inch';
+    }
+    return null;
+  }, [lines]);
+
   return (
     <div className="gcode-viewer">
       <div className="gcode-viewer__tabs">
@@ -86,6 +96,7 @@ export default function GCodeViewer({ data }: GCodeViewerProps) {
           segments={segments}
           step={step}
           onStepChange={setStep}
+          gcodeUnit={gcodeUnit}
         />
       )}
     </div>
@@ -178,14 +189,18 @@ function ToolpathViewer({
   segments,
   step,
   onStepChange,
+  gcodeUnit,
 }: {
   segments: ToolpathSegment[];
   step: number;
   onStepChange: (s: number) => void;
+  gcodeUnit: 'mm' | 'inch' | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const bounds = useMemo(() => {
@@ -248,6 +263,17 @@ function ToolpathViewer({
     drawCanvas();
   }, [drawCanvas]);
 
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setViewportSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -282,11 +308,31 @@ function ToolpathViewer({
         <span className="gcode-toolpath__info">{segments.length} moves</span>
       </div>
       <div
+        ref={wrapRef}
         className="gcode-toolpath__canvas-wrap"
+        style={{ position: 'relative' }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
       >
         <canvas ref={canvasRef} className="gcode-toolpath__canvas" />
+        {gcodeUnit && viewportSize.w > 0 && (() => {
+          const mmPerContentUnit = gcodeUnit === 'mm' ? 1 : 25.4;
+          const displayW = viewportSize.w;
+          const displayH = viewportSize.h;
+          const scale = Math.min((displayW / bounds.w) * zoom, (displayH / bounds.h) * zoom);
+          const effectiveOffsetX = offset.x - (bounds.minX + bounds.w / 2) * scale;
+          const effectiveOffsetY = offset.y - (bounds.minY + bounds.h / 2) * scale;
+          return (
+            <MmRuler
+              containerWidth={displayW}
+              containerHeight={displayH}
+              mmPerPx={mmPerContentUnit / scale}
+              offsetX={effectiveOffsetX}
+              offsetY={effectiveOffsetY}
+              zoom={1}
+            />
+          );
+        })()}
       </div>
       <div className="gcode-toolpath__scrubber">
         <label className="gcode-toolpath__scrubber-label">

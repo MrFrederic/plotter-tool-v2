@@ -1,5 +1,6 @@
 import { memo, type FC } from 'react';
 import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react';
+import useFlowStore from '../../store/useFlowStore';
 
 const CustomEdge: FC<EdgeProps> = ({
   id,
@@ -14,6 +15,8 @@ const CustomEdge: FC<EdgeProps> = ({
   interactionWidth = 24,
   style = {},
 }) => {
+  const hasNoData = useFlowStore((s) => s.noDataEdgeIds.has(id));
+
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -22,6 +25,26 @@ const CustomEdge: FC<EdgeProps> = ({
     targetY,
     targetPosition,
   });
+
+  if (hasNoData) {
+    return (
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={interactionWidth}
+        style={{
+          ...style,
+          stroke: 'var(--text-dim)',
+          strokeWidth: 1,
+          fill: 'none',
+          strokeOpacity: 0.25,
+          strokeDasharray: '3 5',
+        }}
+      />
+    );
+  }
 
   return (
     <>

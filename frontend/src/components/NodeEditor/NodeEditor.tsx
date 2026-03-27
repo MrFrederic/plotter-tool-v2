@@ -7,6 +7,8 @@ import {
   BackgroundVariant,
   type Edge,
   type Node,
+  type OnConnectStart,
+  type OnConnectEnd,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './NodeEditor.css';
@@ -47,6 +49,8 @@ export default function NodeEditor() {
   const removeNode = useFlowStore((s) => s.removeNode);
   const removeEdge = useFlowStore((s) => s.removeEdge);
   const deleteSelectedElements = useFlowStore((s) => s.deleteSelectedElements);
+  const setConnectionDrag = useFlowStore((s) => s.setConnectionDrag);
+  const clearConnectionDrag = useFlowStore((s) => s.clearConnectionDrag);
 
   const [ctxMenu, setCtxMenu] = useState<CtxState | null>(null);
 
@@ -106,11 +110,30 @@ export default function NodeEditor() {
     [selectEdge],
   );
 
+  const selectOutputPreview = useFlowStore((s) => s.selectOutputPreview);
+
   const onPaneClick = useCallback(() => {
     selectNode(null);
     selectEdge(null);
+    selectOutputPreview(null);
     closeCtx();
-  }, [selectNode, selectEdge, closeCtx]);
+  }, [selectNode, selectEdge, selectOutputPreview, closeCtx]);
+
+  const onConnectStart: OnConnectStart = useCallback(
+    (_event, params) => {
+      if (!params.nodeId) return;
+      setConnectionDrag({
+        nodeId: params.nodeId,
+        handleId: params.handleId ?? null,
+        handleType: (params.handleType ?? 'source') as 'source' | 'target',
+      });
+    },
+    [setConnectionDrag],
+  );
+
+  const onConnectEnd: OnConnectEnd = useCallback(() => {
+    clearConnectionDrag();
+  }, [clearConnectionDrag]);
 
   /* ---- right-click on node ---- */
   const onNodeContextMenu = useCallback(
@@ -163,12 +186,7 @@ export default function NodeEditor() {
       // Prevent self-connections
       if (connection.source === connection.target) return false;
 
-      // Prevent multiple incoming connections to the same input port
-      const existingEdge = edges.find(
-        (e) => e.target === connection.target && e.targetHandle === connection.targetHandle,
-      );
-      if (existingEdge) return false;
-
+      // Occupied single inputs are allowed — the store now replaces the old edge on connect
       // Port type compatibility check
       const sourceNode = nodes.find((n) => n.id === connection.source);
       const targetNode = nodes.find((n) => n.id === connection.target);
@@ -192,7 +210,7 @@ export default function NodeEditor() {
 
       return true;
     },
-    [nodes, edges],
+    [nodes],
   );
 
   return (
@@ -210,6 +228,8 @@ export default function NodeEditor() {
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
         nodeTypes={nodeTypes}
@@ -217,6 +237,7 @@ export default function NodeEditor() {
         fitView
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'custom', animated: true, interactionWidth: 24 }}
+        connectionRadius={32}
         deleteKeyCode={null}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1a1a2e" />

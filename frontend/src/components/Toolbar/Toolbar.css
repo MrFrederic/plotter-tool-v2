@@ -78,3 +78,10 @@
   color: var(--accent-amber);
   animation: pulseGlow 1.5s ease-in-out infinite;
 }
+
+.toolbar__executing {
+  color: var(--accent-amber);
+  font-size: 11px;
+  letter-spacing: 1px;
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}

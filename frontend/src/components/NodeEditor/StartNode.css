@@ -114,3 +114,18 @@
   background: var(--success) !important;
   box-shadow: 0 0 6px var(--success);
 }
+
+.start-node__port-label--unavailable {
+  opacity: 0.25;
+}
+
+.start-node__handle--available {
+  background: var(--accent-cyan) !important;
+  box-shadow: 0 0 10px var(--accent-cyan) !important;
+  transform: scale(1.5);
+}
+
+.start-node__handle--unavailable {
+  opacity: 0.18;
+  pointer-events: none;
+}

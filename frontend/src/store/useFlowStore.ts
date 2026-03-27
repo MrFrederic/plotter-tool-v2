@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react';
 import type { NodeStatus, PluginSchema, UploadedFile } from '../types';
 import { fetchPlugins } from '../api/rest';
+import { computeGraphExecutionState } from '../utils/flowRules';
 
 export interface FlowNodeData extends Record<string, unknown> {
   label: string;
@@ -24,6 +25,18 @@ export interface FlowNodeData extends Record<string, unknown> {
   status: NodeStatus;
   schema: PluginSchema;
   nodeKind?: 'start' | 'end' | 'process';
+  blocked?: boolean;
+}
+
+export interface OutputPreviewSelection {
+  nodeId: string;
+  outputHandle: string | null;
+}
+
+export interface ConnectionDragState {
+  nodeId: string;
+  handleId: string | null;
+  handleType: 'source' | 'target';
 }
 
 export const START_NODE_ID = '__start__';
@@ -110,6 +123,11 @@ interface FlowState {
   nodeErrors: Record<string, string>;
   pluginSchemas: PluginSchema[];
   uploadedFile: UploadedFile | null;
+  selectedOutputPreview: OutputPreviewSelection | null;
+  connectionDrag: ConnectionDragState | null;
+  blockedNodeIds: Set<string>;
+  noDataEdgeIds: Set<string>;
+  runnableNodeIds: Set<string>;
 
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -124,6 +142,9 @@ interface FlowState {
   selectEdge: (edgeId: string | null) => void;
   loadPluginSchemas: () => Promise<void>;
   setUploadedFile: (file: UploadedFile | null) => void;
+  selectOutputPreview: (selection: OutputPreviewSelection | null) => void;
+  setConnectionDrag: (drag: ConnectionDragState) => void;
+  clearConnectionDrag: () => void;
   resetExecutionState: () => void;
   removeEdge: (edgeId: string) => void;
   removeNode: (nodeId: string) => void;
@@ -200,6 +221,11 @@ const useFlowStore = create<FlowState>((set, get) => ({
   nodeErrors: {},
   pluginSchemas: [],
   uploadedFile: null,
+  selectedOutputPreview: null,
+  connectionDrag: null,
+  blockedNodeIds: new Set<string>(),
+  noDataEdgeIds: new Set<string>(),
+  runnableNodeIds: new Set<string>(),
 
   onNodesChange: (changes) => {
     // Protect start/end nodes from deletion
@@ -214,24 +240,28 @@ const useFlowStore = create<FlowState>((set, get) => ({
   onEdgesChange: (changes) => {
     const nextEdges = applyEdgeChanges(changes, get().edges);
     const selectedEdgeId = get().selectedEdgeId;
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      get().nodes,
+      nextEdges,
+      (get().nodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
     set({
       edges: nextEdges,
       selectedEdgeId:
         selectedEdgeId && !nextEdges.some((e) => e.id === selectedEdgeId)
           ? null
           : selectedEdgeId,
+      blockedNodeIds,
+      noDataEdgeIds,
+      runnableNodeIds,
     });
   },
 
   onConnect: (connection) => {
+    if (!connection.source || !connection.target) return;
+
     // Prevent self-connections
     if (connection.source === connection.target) return;
-
-    // Prevent multiple incoming connections to the same input port
-    const existingEdge = get().edges.find(
-      (e) => e.target === connection.target && e.targetHandle === connection.targetHandle,
-    );
-    if (existingEdge) return;
 
     // Port type compatibility check
     const sourceNode = get().nodes.find((n) => n.id === connection.source);
@@ -254,7 +284,26 @@ const useFlowStore = create<FlowState>((set, get) => ({
       }
     }
 
-    set({ edges: addEdge({ ...connection, type: 'custom' }, get().edges) });
+    const sameTarget = get().edges.filter(
+      (edge) => edge.target === connection.target && edge.targetHandle === connection.targetHandle,
+    );
+
+    const duplicate = sameTarget.some(
+      (edge) => edge.source === connection.source && edge.sourceHandle === connection.sourceHandle,
+    );
+    if (duplicate) return;
+
+    const remainingEdges = get().edges.filter(
+      (edge) => !(edge.target === connection.target && edge.targetHandle === connection.targetHandle),
+    );
+
+    const nextEdges = addEdge({ ...connection, type: 'custom' }, remainingEdges);
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      get().nodes,
+      nextEdges,
+      (get().nodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
+    set({ edges: nextEdges, blockedNodeIds, noDataEdgeIds, runnableNodeIds });
   },
 
   addNode: (pluginName, position) => {
@@ -335,6 +384,7 @@ const useFlowStore = create<FlowState>((set, get) => ({
           !selectedNodeIds.has(e.source) && !selectedNodeIds.has(e.target),
       );
       const selectedEdgeId = get().selectedEdgeId;
+      const selectedOutputPreview = get().selectedOutputPreview;
       set({
         nodes: remainingNodes,
         edges: remainingEdges,
@@ -342,6 +392,10 @@ const useFlowStore = create<FlowState>((set, get) => ({
           selectedEdgeId && !remainingEdges.some((e) => e.id === selectedEdgeId)
             ? null
             : selectedEdgeId,
+        selectedOutputPreview:
+          selectedOutputPreview && selectedNodeIds.has(selectedOutputPreview.nodeId)
+            ? null
+            : selectedOutputPreview,
       });
       return;
     }
@@ -361,13 +415,17 @@ const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   updateNodeParams: (nodeId, params) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === nodeId
-          ? { ...n, data: { ...n.data, params: { ...n.data.params, ...params } } }
-          : n,
-      ),
-    });
+    const nextNodes = get().nodes.map((n) =>
+      n.id === nodeId
+        ? { ...n, data: { ...n.data, params: { ...n.data.params, ...params } } }
+        : n,
+    );
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      nextNodes,
+      get().edges,
+      (nextNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
+    set({ nodes: nextNodes, blockedNodeIds, noDataEdgeIds, runnableNodeIds });
   },
 
   setNodeStatus: (nodeId, status) => {
@@ -413,6 +471,18 @@ const useFlowStore = create<FlowState>((set, get) => ({
     set({ uploadedFile: file });
   },
 
+  selectOutputPreview: (selection) => {
+    set({ selectedOutputPreview: selection });
+  },
+
+  setConnectionDrag: (drag) => {
+    set({ connectionDrag: drag });
+  },
+
+  clearConnectionDrag: () => {
+    set({ connectionDrag: null });
+  },
+
   resetExecutionState: () => {
     set({
       nodeStatuses: {},
@@ -438,6 +508,7 @@ const useFlowStore = create<FlowState>((set, get) => ({
       (e) => e.source !== nodeId && e.target !== nodeId,
     );
     const selectedEdgeId = get().selectedEdgeId;
+    const selectedOutputPreview = get().selectedOutputPreview;
     set({
       nodes: get().nodes.filter((n) => n.id !== nodeId),
       edges,
@@ -445,6 +516,8 @@ const useFlowStore = create<FlowState>((set, get) => ({
         selectedEdgeId && !edges.some((e) => e.id === selectedEdgeId)
           ? null
           : selectedEdgeId,
+      selectedOutputPreview:
+        selectedOutputPreview?.nodeId === nodeId ? null : selectedOutputPreview,
     });
   },
 }));

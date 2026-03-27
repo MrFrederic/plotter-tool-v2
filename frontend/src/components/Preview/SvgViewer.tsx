@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './SvgViewer.css';
+import MmRuler from './MmRuler';
+
+const UNIT_TO_MM: Record<string, number> = {
+  mm: 1, cm: 10, in: 25.4, pt: 25.4 / 72, pc: 25.4 / 6,
+};
+
+function parsePhysicalValue(attr: string | null): { value: number; unit: string } | null {
+  if (!attr) return null;
+  const m = attr.match(/^([\d.]+)\s*(mm|cm|in|pt|pc)$/i);
+  if (!m) return null;
+  return { value: parseFloat(m[1]), unit: m[2].toLowerCase() };
+}
 
 function sanitizeSvg(svg: string): string {
   return svg
@@ -18,6 +30,7 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
       elementCount: 0,
       geometryCount: 0,
       useCanvasMode: false,
+      mmPerUnit: null,
     };
   }
 
@@ -35,6 +48,7 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
         elementCount: 0,
         geometryCount: 0,
         useCanvasMode: false,
+        mmPerUnit: null,
       };
     }
 
@@ -48,6 +62,7 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
         elementCount: 0,
         geometryCount: 0,
         useCanvasMode: false,
+        mmPerUnit: null,
       };
     }
 
@@ -85,6 +100,18 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
       'use',
     ].reduce((count, tag) => count + svgElement.getElementsByTagName(tag).length, 0);
 
+    let mmPerUnit: number | null = null;
+    const rawWidthAttr = svgElement.getAttribute('width');
+    const rawHeightAttr = svgElement.getAttribute('height');
+    const physW = parsePhysicalValue(rawWidthAttr);
+    const physH = parsePhysicalValue(rawHeightAttr);
+    if (physW && physH) {
+      const physWmm = physW.value * UNIT_TO_MM[physW.unit];
+      if (width > 0) {
+        mmPerUnit = physWmm / width;
+      }
+    }
+
     return {
       error: null,
       content: sanitized,
@@ -93,6 +120,7 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
       elementCount: svgElement.getElementsByTagName('*').length,
       geometryCount,
       useCanvasMode: geometryCount >= canvasGeometryThreshold,
+      mmPerUnit,
     };
   } catch (err) {
     return {
@@ -103,6 +131,7 @@ function parseSvgData(data: unknown, canvasGeometryThreshold: number): ParsedSvg
       elementCount: 0,
       geometryCount: 0,
       useCanvasMode: false,
+      mmPerUnit: null,
     };
   }
 }
@@ -119,6 +148,7 @@ interface ParsedSvg {
   elementCount: number;
   geometryCount: number;
   useCanvasMode: boolean;
+  mmPerUnit: number | null;
 }
 
 interface CameraState {
@@ -147,6 +177,8 @@ export default function SvgViewer({ data }: SvgViewerProps) {
   });
   const [zoom, setZoom] = useState(1);
   const [domOffset, setDomOffset] = useState({ x: 0, y: 0 });
+  const [panState, setPanState] = useState({ x: 0, y: 0 });
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
   const [bitmapError, setBitmapError] = useState<string | null>(null);
   const [bitmapReady, setBitmapReady] = useState(false);
 
@@ -154,6 +186,17 @@ export default function SvgViewer({ data }: SvgViewerProps) {
   const bitmapRef = useRef<ImageBitmap | null>(null);
 
   const parsed = useMemo(() => parseSvgData(data, SVG_CANVAS_GEOMETRY_THRESHOLD), [data]);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setViewportSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('svgViewerTheme', theme);
@@ -327,6 +370,7 @@ export default function SvgViewer({ data }: SvgViewerProps) {
     if (!bitmapRef.current) {
       setDomOffset({ x: cameraRef.current.panX, y: cameraRef.current.panY });
     }
+    setPanState({ x: cameraRef.current.panX, y: cameraRef.current.panY });
     scheduleCanvasDraw();
   }, [scheduleCanvasDraw]);
 
@@ -366,6 +410,7 @@ export default function SvgViewer({ data }: SvgViewerProps) {
     if (!bitmapRef.current) {
       setDomOffset({ x: cameraRef.current.panX, y: cameraRef.current.panY });
     }
+    setPanState({ x: cameraRef.current.panX, y: cameraRef.current.panY });
 
     scheduleCanvasDraw();
     endInteraction();
@@ -375,6 +420,7 @@ export default function SvgViewer({ data }: SvgViewerProps) {
     cameraRef.current = { zoom: 1, panX: 0, panY: 0 };
     setZoom(1);
     setDomOffset({ x: 0, y: 0 });
+    setPanState({ x: 0, y: 0 });
     scheduleCanvasDraw();
   }, [scheduleCanvasDraw]);
 
@@ -427,6 +473,7 @@ export default function SvgViewer({ data }: SvgViewerProps) {
       <div
         ref={viewportRef}
         className={`svg-viewer__viewport svg-viewer__viewport--${theme}`}
+        style={{ position: 'relative' }}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -446,6 +493,22 @@ export default function SvgViewer({ data }: SvgViewerProps) {
             dangerouslySetInnerHTML={{ __html: parsed.content }}
           />
         )}
+        {parsed.mmPerUnit != null && viewportSize.w > 0 && (() => {
+          const fitScale = Math.min(
+            (viewportSize.w * 0.9) / parsed.width,
+            (viewportSize.h * 0.9) / parsed.height,
+          );
+          return (
+            <MmRuler
+              containerWidth={viewportSize.w}
+              containerHeight={viewportSize.h}
+              mmPerPx={parsed.mmPerUnit / fitScale}
+              offsetX={panState.x}
+              offsetY={panState.y}
+              zoom={zoom}
+            />
+          );
+        })()}
       </div>
 
       {parsed.useCanvasMode && bitmapReady && !bitmapError && (

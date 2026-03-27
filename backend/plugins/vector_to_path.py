@@ -28,6 +28,7 @@ ET.register_namespace("", _SVG_NS)
 ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
 _logger = logging.getLogger(__name__)
+_DEFAULT_SEGMENT_META: dict[str, float | None] = {"width": None, "speed": None}
 
 # ---------------------------------------------------------------------------
 # Regex helpers for SVG path data tokenising
@@ -128,6 +129,59 @@ def _apply_transform_points(
 ) -> list[list[float]]:
     """Apply affine matrix to a list of [x, y] points."""
     return [list(_apply_transform(mat, p[0], p[1])) for p in points]
+
+
+def _is_similarity_transform(mat: np.ndarray, tol: float = 1e-6) -> bool:
+    """Return True if *mat* preserves circles (uniform scale + rotation/reflection)."""
+    vx = np.array([mat[0, 0], mat[1, 0]], dtype=np.float64)
+    vy = np.array([mat[0, 1], mat[1, 1]], dtype=np.float64)
+    nx = float(np.linalg.norm(vx))
+    ny = float(np.linalg.norm(vy))
+    if nx < tol or ny < tol:
+        return False
+    return abs(np.dot(vx, vy)) <= tol and abs(nx - ny) <= tol
+
+
+def _apply_transform_segments(
+    mat: np.ndarray, segments: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Apply affine matrix to segment geometry.
+
+    Arc segments are kept only for similarity transforms; otherwise they are
+    downgraded to lines to avoid invalid circular-arc representation.
+    """
+    keep_arc = _is_similarity_transform(mat)
+    det = mat[0, 0] * mat[1, 1] - mat[0, 1] * mat[1, 0]
+
+    transformed: list[dict[str, Any]] = []
+    for seg in segments:
+        meta = dict(seg.get("meta") or _DEFAULT_SEGMENT_META)
+        p_from = list(_apply_transform(mat, seg["from"][0], seg["from"][1]))
+        p_to = list(_apply_transform(mat, seg["to"][0], seg["to"][1]))
+
+        if seg.get("type") == "arc" and keep_arc and "center" in seg:
+            center = list(_apply_transform(mat, seg["center"][0], seg["center"][1]))
+            clockwise = bool(seg.get("clockwise", True))
+            if det < 0:
+                clockwise = not clockwise
+            transformed.append({
+                "type": "arc",
+                "from": p_from,
+                "to": p_to,
+                "center": center,
+                "clockwise": clockwise,
+                "meta": meta,
+            })
+            continue
+
+        transformed.append({
+            "type": "line",
+            "from": p_from,
+            "to": p_to,
+            "meta": meta,
+        })
+
+    return transformed
 
 
 # ---------------------------------------------------------------------------
@@ -312,16 +366,166 @@ def _arc_to_points(
     return points
 
 
+def _arc_center_parameterization(
+    x0: float,
+    y0: float,
+    rx: float,
+    ry: float,
+    x_rotation_deg: float,
+    large_arc: bool,
+    sweep: bool,
+    x1: float,
+    y1: float,
+) -> tuple[float, float, float, float, float, float, float] | None:
+    """Return SVG arc center-form parameters or None for degenerate input."""
+    if (abs(x1 - x0) < 1e-10 and abs(y1 - y0) < 1e-10) or rx < 1e-10 or ry < 1e-10:
+        return None
+
+    rx, ry = abs(rx), abs(ry)
+    phi = math.radians(x_rotation_deg)
+    cos_phi = math.cos(phi)
+    sin_phi = math.sin(phi)
+
+    dx2 = (x0 - x1) / 2.0
+    dy2 = (y0 - y1) / 2.0
+    x1p = cos_phi * dx2 + sin_phi * dy2
+    y1p = -sin_phi * dx2 + cos_phi * dy2
+
+    x1p_sq = x1p * x1p
+    y1p_sq = y1p * y1p
+    rx_sq = rx * rx
+    ry_sq = ry * ry
+    radii_check = x1p_sq / rx_sq + y1p_sq / ry_sq
+    if radii_check > 1.0:
+        scale = math.sqrt(radii_check)
+        rx *= scale
+        ry *= scale
+        rx_sq = rx * rx
+        ry_sq = ry * ry
+
+    num = max(rx_sq * ry_sq - rx_sq * y1p_sq - ry_sq * x1p_sq, 0.0)
+    den = rx_sq * y1p_sq + ry_sq * x1p_sq
+    sq = math.sqrt(num / den) if den > 1e-12 else 0.0
+    if large_arc == sweep:
+        sq = -sq
+    cxp = sq * rx * y1p / ry
+    cyp = -sq * ry * x1p / rx
+
+    cx = cos_phi * cxp - sin_phi * cyp + (x0 + x1) / 2.0
+    cy = sin_phi * cxp + cos_phi * cyp + (y0 + y1) / 2.0
+
+    def _angle(ux: float, uy: float, vx: float, vy: float) -> float:
+        dot = ux * vx + uy * vy
+        length = math.sqrt(ux * ux + uy * uy) * math.sqrt(vx * vx + vy * vy)
+        cos_val = max(-1.0, min(1.0, dot / length)) if length > 1e-12 else 1.0
+        ang = math.acos(cos_val)
+        if ux * vy - uy * vx < 0:
+            ang = -ang
+        return ang
+
+    theta1 = _angle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry)
+    dtheta = _angle(
+        (x1p - cxp) / rx,
+        (y1p - cyp) / ry,
+        (-x1p - cxp) / rx,
+        (-y1p - cyp) / ry,
+    )
+    if not sweep and dtheta > 0:
+        dtheta -= 2 * math.pi
+    elif sweep and dtheta < 0:
+        dtheta += 2 * math.pi
+
+    return cx, cy, theta1, dtheta, rx, ry, phi
+
+
+def _arc_command_to_segments(
+    x0: float,
+    y0: float,
+    rx: float,
+    ry: float,
+    x_rotation_deg: float,
+    large_arc: bool,
+    sweep: bool,
+    x1: float,
+    y1: float,
+    arc_segments: int,
+    segment_meta: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Convert one SVG A/a command to arc segments (or line fallback)."""
+    params = _arc_center_parameterization(
+        x0, y0, rx, ry, x_rotation_deg, large_arc, sweep, x1, y1
+    )
+    if params is None:
+        return [{
+            "type": "line",
+            "from": [x0, y0],
+            "to": [x1, y1],
+            "meta": dict(segment_meta),
+        }]
+
+    cx, cy, theta1, dtheta, rx_adj, ry_adj, phi = params
+    is_circular = abs(rx_adj - ry_adj) <= 1e-6
+
+    if is_circular:
+        steps = max(1, int(math.ceil(abs(dtheta) / math.pi)))
+        result: list[dict[str, Any]] = []
+        prev = [x0, y0]
+        clockwise = dtheta < 0
+        cos_phi = math.cos(phi)
+        sin_phi = math.sin(phi)
+        for i in range(1, steps + 1):
+            if i == steps:
+                p_to = [x1, y1]
+            else:
+                t = theta1 + dtheta * i / steps
+                xa = rx_adj * math.cos(t)
+                ya = ry_adj * math.sin(t)
+                p_to = [
+                    cos_phi * xa - sin_phi * ya + cx,
+                    sin_phi * xa + cos_phi * ya + cy,
+                ]
+            result.append({
+                "type": "arc",
+                "from": prev,
+                "to": p_to,
+                "center": [cx, cy],
+                "clockwise": clockwise,
+                "meta": dict(segment_meta),
+            })
+            prev = p_to
+        return result
+
+    points = _arc_to_points(
+        x0, y0, rx, ry, x_rotation_deg, large_arc, sweep, x1, y1, arc_segments
+    )
+    result = []
+    prev = [x0, y0]
+    for pt in points:
+        result.append({
+            "type": "line",
+            "from": prev,
+            "to": pt,
+            "meta": dict(segment_meta),
+        })
+        prev = pt
+    return result
+
+
 # ---------------------------------------------------------------------------
 # SVG path ``d`` attribute parser
 # ---------------------------------------------------------------------------
 
-def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict]:
+def _parse_path_d(
+    d_attr: str,
+    tolerance: float,
+    arc_segments: int,
+    segment_meta: dict[str, Any] | None = None,
+) -> list[dict]:
     """Parse an SVG path ``d`` attribute and return a list of sub-paths.
 
-    Each sub-path is a dict: ``{"points": [[x,y], …], "closed": bool}``.
-    Curves and arcs are flattened into polylines according to *tolerance*
-    and *arc_segments*.
+    Each sub-path is a dict: ``{"segments": [...], "closed": bool}``.
+    Béziers are flattened to line segments. Circular arcs are emitted as
+    arc segments where representable; non-circular arcs are line-flattened.
     """
     # Tokenise: split into alternating commands and number groups
     parts = _CMD_RE.split(d_attr)
@@ -337,8 +541,10 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
                 tokens.append(float(num_str))
 
     # Walk through tokens building sub-paths
+    seg_meta = dict(segment_meta or _DEFAULT_SEGMENT_META)
+
     sub_paths: list[dict] = []
-    current_points: list[list[float]] = []
+    current_segments: list[dict[str, Any]] = []
     cx, cy = 0.0, 0.0  # current point
     sx, sy = 0.0, 0.0  # sub-path start
     last_cmd = ""
@@ -371,6 +577,16 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
                     break
             return result
 
+        def _append_line(nx: float, ny: float) -> None:
+            nonlocal cx, cy
+            current_segments.append({
+                "type": "line",
+                "from": [cx, cy],
+                "to": [nx, ny],
+                "meta": dict(seg_meta),
+            })
+            cx, cy = nx, ny
+
         if cmd in ("M", "m"):
             coords = _nums(2)
             if len(coords) < 2:
@@ -380,11 +596,11 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
                 coords[0] += cx
                 coords[1] += cy
             # Start new sub-path: save any existing
-            if current_points:
-                sub_paths.append({"points": current_points, "closed": False})
+            if current_segments:
+                sub_paths.append({"segments": current_segments, "closed": False})
             cx, cy = coords[0], coords[1]
             sx, sy = cx, cy
-            current_points = [[cx, cy]]
+            current_segments = []
             last_ctrl = None
             last_cmd = cmd
             continue
@@ -397,8 +613,7 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             if cmd == "l":
                 coords[0] += cx
                 coords[1] += cy
-            cx, cy = coords[0], coords[1]
-            current_points.append([cx, cy])
+            _append_line(coords[0], coords[1])
             last_ctrl = None
 
         elif cmd in ("H", "h"):
@@ -407,8 +622,7 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
                 last_cmd = cmd
                 continue
             x_val = coords[0] + (cx if cmd == "h" else 0.0)
-            cx = x_val
-            current_points.append([cx, cy])
+            _append_line(x_val, cy)
             last_ctrl = None
 
         elif cmd in ("V", "v"):
@@ -417,8 +631,7 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
                 last_cmd = cmd
                 continue
             y_val = coords[0] + (cy if cmd == "v" else 0.0)
-            cy = y_val
-            current_points.append([cx, cy])
+            _append_line(cx, y_val)
             last_ctrl = None
 
         elif cmd in ("C", "c"):
@@ -437,7 +650,8 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             p3 = [coords[4], coords[5]]
             flat: list[list[float]] = []
             _flatten_cubic(p0, p1, p2, p3, tolerance, flat)
-            current_points.extend(flat)
+            for pt in flat:
+                _append_line(pt[0], pt[1])
             cx, cy = p3[0], p3[1]
             last_ctrl = [p2[0], p2[1]]
 
@@ -461,7 +675,8 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             p3 = [coords[2], coords[3]]
             flat = []
             _flatten_cubic(p0, p1, p2, p3, tolerance, flat)
-            current_points.extend(flat)
+            for pt in flat:
+                _append_line(pt[0], pt[1])
             cx, cy = p3[0], p3[1]
             last_ctrl = [p2[0], p2[1]]
 
@@ -480,7 +695,8 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             p2 = [coords[2], coords[3]]
             flat = []
             _flatten_quadratic(p0, p1, p2, tolerance, flat)
-            current_points.extend(flat)
+            for pt in flat:
+                _append_line(pt[0], pt[1])
             cx, cy = p2[0], p2[1]
             last_ctrl = [p1[0], p1[1]]
 
@@ -501,7 +717,8 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             p2 = [coords[0], coords[1]]
             flat = []
             _flatten_quadratic(p0, p1, p2, tolerance, flat)
-            current_points.extend(flat)
+            for pt in flat:
+                _append_line(pt[0], pt[1])
             cx, cy = p2[0], p2[1]
             last_ctrl = [p1[0], p1[1]]
 
@@ -519,18 +736,36 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
             if cmd == "a":
                 ex += cx
                 ey += cy
-            arc_pts = _arc_to_points(cx, cy, arc_rx, arc_ry, x_rot,
-                                     large, sweep_flag, ex, ey, arc_segments)
-            current_points.extend(arc_pts)
+            arc_segments_list = _arc_command_to_segments(
+                cx,
+                cy,
+                arc_rx,
+                arc_ry,
+                x_rot,
+                large,
+                sweep_flag,
+                ex,
+                ey,
+                arc_segments,
+                seg_meta,
+            )
+            current_segments.extend(arc_segments_list)
             cx, cy = ex, ey
             last_ctrl = None
 
         elif cmd in ("Z", "z"):
             # Close the sub-path
             cx, cy = sx, sy
-            if current_points:
-                sub_paths.append({"points": current_points, "closed": True})
-                current_points = []
+            if current_segments:
+                if abs(current_segments[-1]["to"][0] - sx) > 1e-9 or abs(current_segments[-1]["to"][1] - sy) > 1e-9:
+                    current_segments.append({
+                        "type": "line",
+                        "from": [current_segments[-1]["to"][0], current_segments[-1]["to"][1]],
+                        "to": [sx, sy],
+                        "meta": dict(seg_meta),
+                    })
+                sub_paths.append({"segments": current_segments, "closed": True})
+                current_segments = []
             last_ctrl = None
             last_cmd = cmd
             continue
@@ -538,8 +773,8 @@ def _parse_path_d(d_attr: str, tolerance: float, arc_segments: int) -> list[dict
         last_cmd = cmd
 
     # Flush any remaining open sub-path
-    if current_points:
-        sub_paths.append({"points": current_points, "closed": False})
+    if current_segments:
+        sub_paths.append({"segments": current_segments, "closed": False})
 
     return sub_paths
 
@@ -592,7 +827,9 @@ def _is_hidden(elem: ET.Element) -> bool:
 # ---------------------------------------------------------------------------
 
 def _points_to_path_obj(
-    points: list[list[float]], closed: bool
+    points: list[list[float]],
+    closed: bool,
+    segment_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Create a PathObject dict from a sequence of points.
 
@@ -601,13 +838,14 @@ def _points_to_path_obj(
     if len(points) < 2:
         return None
 
+    meta = dict(segment_meta or _DEFAULT_SEGMENT_META)
     segments: list[dict[str, Any]] = []
     for i in range(len(points) - 1):
         segments.append({
             "type": "line",
             "from": points[i],
             "to": points[i + 1],
-            "meta": {"width": None, "speed": None},
+            "meta": dict(meta),
         })
 
     if closed:
@@ -616,7 +854,7 @@ def _points_to_path_obj(
             "type": "line",
             "from": points[-1],
             "to": points[0],
-            "meta": {"width": None, "speed": None},
+            "meta": dict(meta),
         })
 
     return {"segments": segments, "closed": closed}
@@ -627,7 +865,10 @@ def _points_to_path_obj(
 # ---------------------------------------------------------------------------
 
 def _stroke_to_path_obj(
-    points: list[list[float]], stroke_width: float, closed: bool
+    points: list[list[float]],
+    stroke_width: float,
+    closed: bool,
+    segment_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Buffer a polyline by *stroke_width*/2 using Shapely and return a PathObject."""
     try:
@@ -655,7 +896,7 @@ def _stroke_to_path_obj(
         # Extract exterior ring coordinates
         coords = list(buffered.exterior.coords)
         path_points = [[c[0], c[1]] for c in coords]
-        return _points_to_path_obj(path_points, closed=True)
+        return _points_to_path_obj(path_points, closed=True, segment_meta=segment_meta)
     except Exception:
         return None
 
@@ -699,6 +940,15 @@ def _get_stroke_width(elem: ET.Element) -> float:
     return 1.0
 
 
+def _get_segment_meta(elem: ET.Element) -> dict[str, float | None]:
+    """Build per-segment metadata from SVG styling information."""
+    stroke_width = _get_stroke_width(elem)
+    return {
+        "width": stroke_width if stroke_width > 0 else None,
+        "speed": None,
+    }
+
+
 # ===========================================================================
 # VectorToPath plugin
 # ===========================================================================
@@ -740,8 +990,9 @@ class VectorToPath(BasePlugin):
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "All SVG geometry converted to line segments in PATH format. "
-                        "Curves and arcs are flattened to polylines. Each discrete "
+                        "All SVG geometry converted to PATH segments. Circular arcs "
+                        "are preserved as arc segments when representable, while "
+                        "other curves are flattened to polylines. Each discrete "
                         "SVG shape or sub-path becomes its own PathObject."
                     ),
                 ),
@@ -943,9 +1194,16 @@ class VectorToPath(BasePlugin):
         # Convert individual shape elements
         sub_paths: list[dict] | None = None
 
+        segment_meta = _get_segment_meta(elem)
+
         try:
             if tag == "path":
-                sub_paths = self._convert_path(elem, curve_tolerance, arc_segments)
+                sub_paths = self._convert_path(
+                    elem,
+                    curve_tolerance,
+                    arc_segments,
+                    segment_meta,
+                )
             elif tag == "line":
                 sub_paths = self._convert_line(elem)
             elif tag == "polyline":
@@ -973,14 +1231,38 @@ class VectorToPath(BasePlugin):
 
         # Build PathObjects from sub-paths
         for sp in sub_paths:
-            points = sp["points"]
             closed = sp.get("closed", False)
 
-            # Apply accumulated transform
-            if flatten_transforms and not np.allclose(current_transform, _identity()):
-                points = _apply_transform_points(current_transform, points)
+            if "segments" in sp:
+                segments = [dict(seg) for seg in sp["segments"]]
+            else:
+                points = sp["points"]
+                path_obj = _points_to_path_obj(points, closed, segment_meta)
+                if path_obj:
+                    if flatten_transforms and not np.allclose(current_transform, _identity()):
+                        path_obj["segments"] = _apply_transform_segments(
+                            current_transform,
+                            path_obj["segments"],
+                        )
+                    path_list.append(path_obj)
 
-            path_obj = _points_to_path_obj(points, closed)
+                if stroke_to_path:
+                    sw = _get_stroke_width(elem)
+                    if sw > 0:
+                        stroke_obj = _stroke_to_path_obj(
+                            points,
+                            sw,
+                            closed,
+                            segment_meta,
+                        )
+                        if stroke_obj:
+                            path_list.append(stroke_obj)
+                continue
+
+            if flatten_transforms and not np.allclose(current_transform, _identity()):
+                segments = _apply_transform_segments(current_transform, segments)
+
+            path_obj = {"segments": segments, "closed": closed} if segments else None
             if path_obj:
                 path_list.append(path_obj)
 
@@ -988,7 +1270,14 @@ class VectorToPath(BasePlugin):
             if stroke_to_path:
                 sw = _get_stroke_width(elem)
                 if sw > 0:
-                    stroke_obj = _stroke_to_path_obj(points, sw, closed)
+                    poly_points = [segments[0]["from"]]
+                    poly_points.extend(seg["to"] for seg in segments)
+                    stroke_obj = _stroke_to_path_obj(
+                        poly_points,
+                        sw,
+                        closed,
+                        segment_meta,
+                    )
                     if stroke_obj:
                         path_list.append(stroke_obj)
 
@@ -998,13 +1287,16 @@ class VectorToPath(BasePlugin):
 
     @staticmethod
     def _convert_path(
-        elem: ET.Element, tolerance: float, arc_segments: int
+        elem: ET.Element,
+        tolerance: float,
+        arc_segments: int,
+        segment_meta: dict[str, Any],
     ) -> list[dict] | None:
         """Convert a ``<path>`` element's ``d`` attribute."""
         d_attr = elem.get("d", "").strip()
         if not d_attr:
             return None
-        sub_paths = _parse_path_d(d_attr, tolerance, arc_segments)
+        sub_paths = _parse_path_d(d_attr, tolerance, arc_segments, segment_meta)
         return sub_paths if sub_paths else None
 
     @staticmethod

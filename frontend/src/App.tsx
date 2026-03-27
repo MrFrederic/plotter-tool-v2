@@ -6,7 +6,6 @@ import ConfigPanel from './components/Sidebar/ConfigPanel';
 import TelemetryPanel from './components/Telemetry/TelemetryPanel';
 import PreviewWindow from './components/Preview/PreviewWindow';
 import Toolbar from './components/Toolbar/Toolbar';
-import ScanlineOverlay from './components/common/ScanlineOverlay';
 import DecorativeOverlay from './components/common/DecorativeOverlay';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useFlowStore from './store/useFlowStore';
@@ -19,6 +18,8 @@ export default function App() {
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
   const selectedEdgeId = useFlowStore((s) => s.selectedEdgeId);
   const selectEdge = useFlowStore((s) => s.selectEdge);
+  const selectedOutputPreview = useFlowStore((s) => s.selectedOutputPreview);
+  const selectOutputPreview = useFlowStore((s) => s.selectOutputPreview);
   const nodes = useFlowStore((s) => s.nodes);
   const edges = useFlowStore((s) => s.edges);
   const nodeStatuses = useFlowStore((s) => s.nodeStatuses);
@@ -36,26 +37,31 @@ export default function App() {
     [edges, selectedEdgeId],
   );
 
-  const previewNode = useMemo(
-    () => (selectedEdge ? nodes.find((n) => n.id === selectedEdge.source) ?? null : null),
-    [nodes, selectedEdge],
+  const previewNodeId = selectedEdge?.source ?? null;
+  const outputPreviewNodeId = selectedOutputPreview?.nodeId ?? null;
+  const outputPreviewHandle = selectedOutputPreview?.outputHandle ?? null;
+
+  // Output-port click takes priority over edge click for preview
+  const activePreviewNodeId = outputPreviewNodeId ?? previewNodeId;
+  const activePreviewHandle = outputPreviewNodeId ? outputPreviewHandle : (selectedEdge?.sourceHandle ?? null);
+
+  const activePreviewNode = useMemo(
+    () => (activePreviewNodeId ? nodes.find((n) => n.id === activePreviewNodeId) ?? null : null),
+    [nodes, activePreviewNodeId],
   );
 
-  const previewNodeId = selectedEdge?.source ?? null;
-  const previewNodeStatus = previewNodeId ? nodeStatuses[previewNodeId] : undefined;
-
   const outputType = useMemo(() => {
-    if (!previewNode?.data?.outputs?.length) return undefined;
+    if (!activePreviewNode?.data?.outputs?.length) return undefined;
 
-    if (selectedEdge?.sourceHandle) {
-      const matchingOutput = previewNode.data.outputs.find(
-        (output) => output.name === selectedEdge.sourceHandle,
+    if (activePreviewHandle) {
+      const matchingOutput = activePreviewNode.data.outputs.find(
+        (output) => output.name === activePreviewHandle,
       );
       if (matchingOutput) return matchingOutput.type;
     }
 
-    return previewNode.data.outputs[0].type;
-  }, [previewNode, selectedEdge]);
+    return activePreviewNode.data.outputs[0].type;
+  }, [activePreviewNode, activePreviewHandle]);
 
   const loadPreview = useCallback(async (pipelineId: string, nodeId: string, signal?: AbortSignal) => {
     setPreviewLoading(true);
@@ -75,8 +81,10 @@ export default function App() {
     }
   }, []);
 
+  const activePreviewNodeStatus = activePreviewNodeId ? nodeStatuses[activePreviewNodeId] : undefined;
+
   useEffect(() => {
-    if (!selectedEdge || !previewNodeId) {
+    if (!activePreviewNodeId) {
       setPreviewVisible(false);
       setPreviewData(null);
       setPreviewError(null);
@@ -85,7 +93,7 @@ export default function App() {
 
     setPreviewVisible(true);
 
-    if (previewNodeStatus !== 'DONE' && previewNodeStatus !== 'CACHED') {
+    if (activePreviewNodeStatus !== 'DONE' && activePreviewNodeStatus !== 'CACHED') {
       setPreviewLoading(false);
       setPreviewData(null);
       setPreviewError(null);
@@ -93,10 +101,10 @@ export default function App() {
     }
 
     const abortController = new AbortController();
-    loadPreview(sessionId, previewNodeId, abortController.signal);
+    loadPreview(sessionId, activePreviewNodeId, abortController.signal);
 
     return () => { abortController?.abort(); };
-  }, [selectedEdge, previewNodeId, previewNodeStatus, sessionId, loadPreview]);
+  }, [activePreviewNodeId, activePreviewNodeStatus, sessionId, loadPreview]);
 
   return (
     <>
@@ -137,9 +145,10 @@ export default function App() {
           onClose={() => {
             setPreviewVisible(false);
             selectEdge(null);
+            selectOutputPreview(null);
           }}
           title="CONNECTION PREVIEW"
-          nodeId={previewNodeId}
+          nodeId={activePreviewNodeId}
           outputType={outputType}
           resultData={previewData}
           loading={previewLoading}
@@ -147,7 +156,6 @@ export default function App() {
         />
       </ErrorBoundary>
 
-      <ScanlineOverlay />
       <DecorativeOverlay />
     </>
   );
