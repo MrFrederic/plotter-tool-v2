@@ -24,6 +24,17 @@ export interface ParameterDefinition {
   step?: number;
   options?: string[];
   description?: string;
+  visible_if?: ParameterVisibilityCondition;
+}
+
+export interface ParameterVisibilityCondition {
+  parameter?: string;
+  equals?: unknown;
+  not_equals?: unknown;
+  one_of?: unknown[];
+  none_of?: unknown[];
+  all?: ParameterVisibilityCondition[];
+  any?: ParameterVisibilityCondition[];
 }
 
 export interface TelemetryMessage {

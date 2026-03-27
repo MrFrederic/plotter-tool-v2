@@ -124,6 +124,7 @@ interface FlowState {
   selectEdge: (edgeId: string | null) => void;
   loadPluginSchemas: () => Promise<void>;
   setUploadedFile: (file: UploadedFile | null) => void;
+  resetExecutionState: () => void;
   removeEdge: (edgeId: string) => void;
   removeNode: (nodeId: string) => void;
 }
@@ -410,6 +411,17 @@ const useFlowStore = create<FlowState>((set, get) => ({
 
   setUploadedFile: (file) => {
     set({ uploadedFile: file });
+  },
+
+  resetExecutionState: () => {
+    set({
+      nodeStatuses: {},
+      nodeErrors: {},
+      nodes: get().nodes.map((n) => ({
+        ...n,
+        data: { ...n.data, status: 'IDLE' },
+      })),
+    });
   },
 
   removeEdge: (edgeId) => {

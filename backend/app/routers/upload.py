@@ -5,7 +5,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from sqlalchemy import delete, select
 
+from app.cache import get_shared_cache
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -87,4 +89,83 @@ async def upload_file(
         "filename": original_name,
         "path": str(dest),
         "size": len(content),
+    }
+
+
+@router.delete("/session/{session_id}")
+async def clear_session_upload_cache(session_id: str) -> dict[str, int | str]:
+    """Remove cached execution results and uploaded files for a session."""
+    from app.database import async_session
+    from app.models import CachedFile
+    from app.routers.execution import _engines, _execution_status
+
+    cache = get_shared_cache()
+    cache_dir = Path(settings.CACHE_DIR).resolve()
+
+    run_ids = [
+        run_id
+        for run_id, status in list(_execution_status.items())
+        if status.get("session_id") == session_id
+    ]
+    result_hashes: set[str] = set()
+
+    for run_id in run_ids:
+        engine = _engines.pop(run_id, None)
+        _execution_status.pop(run_id, None)
+        if engine is None:
+            continue
+        for node in engine.nodes.values():
+            if node.result_hash:
+                result_hashes.add(node.result_hash)
+
+    removed_result_files = 0
+    for hash_key in result_hashes:
+        if await cache.delete(hash_key, extension=".json"):
+            removed_result_files += 1
+
+    upload_paths: set[Path] = set()
+    db_rows_removed = 0
+    try:
+        async with async_session() as db:
+            result = await db.execute(
+                select(CachedFile).where(CachedFile.client_id == session_id)
+            )
+            cached_files = list(result.scalars().all())
+            db_rows_removed = len(cached_files)
+            for cached_file in cached_files:
+                try:
+                    resolved = Path(cached_file.file_path).resolve()
+                except Exception:
+                    logger.debug(
+                        "Skipping unresolved cached path during session cleanup",
+                        exc_info=True,
+                    )
+                    continue
+                if resolved.is_relative_to(cache_dir):
+                    upload_paths.add(resolved)
+
+            await db.execute(delete(CachedFile).where(CachedFile.client_id == session_id))
+            await db.commit()
+    except Exception:
+        logger.debug(
+            "Failed to remove DB-tracked cache rows for session %s",
+            session_id,
+            exc_info=True,
+        )
+
+    removed_upload_files = 0
+    for path in upload_paths:
+        try:
+            if path.exists() and path.is_file():
+                await asyncio.to_thread(path.unlink)
+                removed_upload_files += 1
+        except Exception:
+            logger.debug("Failed to delete cached upload file %s", path, exc_info=True)
+
+    return {
+        "session_id": session_id,
+        "removed_runs": len(run_ids),
+        "removed_result_files": removed_result_files,
+        "removed_upload_files": removed_upload_files,
+        "removed_db_rows": db_rows_removed,
     }

@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
-import { fetchNodeResult, uploadFile } from '../../api/rest';
-import type { FileCategory, UploadedFile } from '../../types';
+import { clearSessionUploadCache, fetchNodeResult, uploadFile } from '../../api/rest';
+import type {
+  FileCategory,
+  ParameterDefinition,
+  ParameterVisibilityCondition,
+  UploadedFile,
+} from '../../types';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'gif']);
 const VECTOR_EXTS = new Set(['svg', 'dxf', 'ai', 'eps']);
@@ -80,6 +85,69 @@ function categorizeFile(file: File): FileCategory {
   return 'other';
 }
 
+function getParameterValue(
+  parameterName: string,
+  parameters: ParameterDefinition[],
+  params: Record<string, unknown>,
+): unknown {
+  if (Object.prototype.hasOwnProperty.call(params, parameterName)) {
+    return params[parameterName];
+  }
+
+  return parameters.find((param) => param.name === parameterName)?.default;
+}
+
+function matchesVisibilityCondition(
+  condition: ParameterVisibilityCondition,
+  parameters: ParameterDefinition[],
+  params: Record<string, unknown>,
+): boolean {
+  const matchesAll = Array.isArray(condition.all)
+    ? condition.all.every((child) => matchesVisibilityCondition(child, parameters, params))
+    : true;
+  const matchesAny = Array.isArray(condition.any)
+    ? condition.any.some((child) => matchesVisibilityCondition(child, parameters, params))
+    : true;
+
+  let matchesDirect = true;
+
+  if (condition.parameter) {
+    const value = getParameterValue(condition.parameter, parameters, params);
+
+    if (Object.prototype.hasOwnProperty.call(condition, 'equals')) {
+      matchesDirect = matchesDirect && value === condition.equals;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(condition, 'not_equals')) {
+      matchesDirect = matchesDirect && value !== condition.not_equals;
+    }
+
+    if (Array.isArray(condition.one_of)) {
+      matchesDirect = matchesDirect
+        && condition.one_of.some((candidate) => candidate === value);
+    }
+
+    if (Array.isArray(condition.none_of)) {
+      matchesDirect = matchesDirect
+        && condition.none_of.every((candidate) => candidate !== value);
+    }
+  }
+
+  return matchesAll && matchesAny && matchesDirect;
+}
+
+function isParameterVisible(
+  parameter: ParameterDefinition,
+  parameters: ParameterDefinition[],
+  params: Record<string, unknown>,
+): boolean {
+  if (!parameter.visible_if) {
+    return true;
+  }
+
+  return matchesVisibilityCondition(parameter.visible_if, parameters, params);
+}
+
 export default function ConfigPanel() {
   const nodes = useFlowStore((s) => s.nodes);
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
@@ -96,6 +164,8 @@ export default function ConfigPanel() {
   const isEnd = selectedNodeId === END_NODE_ID;
   const errorMsg = selectedNodeId ? nodeErrors[selectedNodeId] : undefined;
   const { label, category, parameters, params, status } = selectedNode.data;
+  const typedParameters = parameters as ParameterDefinition[];
+  const visibleParameters = typedParameters.filter((param) => isParameterVisible(param, typedParameters, params));
 
   return (
     <div className="config-panel">
@@ -142,12 +212,12 @@ export default function ConfigPanel() {
       {/* Regular nodes: parameters */}
       {!isStart && !isEnd && (
         <div className="config-panel__fields">
-          {parameters.map((param) => (
+          {visibleParameters.map((param) => (
             <ParameterField
               key={param.name}
               name={param.name}
               type={param.type}
-              value={params[param.name] ?? param.default}
+              value={getParameterValue(param.name, typedParameters, params)}
               min={param.min}
               max={param.max}
               step={param.step}
@@ -156,7 +226,7 @@ export default function ConfigPanel() {
               onChange={(val) => updateNodeParams(selectedNodeId!, { [param.name]: val })}
             />
           ))}
-          {parameters.length === 0 && (
+          {visibleParameters.length === 0 && (
             <div className="config-panel__empty">No configurable parameters</div>
           )}
         </div>
@@ -282,6 +352,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const updateNodeParams = useFlowStore((s) => s.updateNodeParams);
+  const resetExecutionState = useFlowStore((s) => s.resetExecutionState);
   const sessionId = usePipelineStore((s) => s.sessionId);
 
   const processFile = useCallback(
@@ -340,6 +411,24 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
     [processFile],
   );
 
+  const handleRemoveFile = useCallback(async () => {
+    onUpload(null);
+    updateNodeParams(START_NODE_ID, {
+      file_path: '',
+      file_category: '',
+    });
+    resetExecutionState();
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+
+    try {
+      await clearSessionUploadCache(sessionId);
+    } catch (err) {
+      console.debug(`Failed to clear cached files for session "${sessionId}":`, err);
+    }
+  }, [onUpload, resetExecutionState, sessionId, updateNodeParams]);
+
   return (
     <div className="config-panel__upload-section">
       <div
@@ -379,7 +468,9 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
           </div>
           <button
             className="config-panel__file-clear"
-            onClick={() => onUpload(null)}
+            onClick={() => {
+              void handleRemoveFile();
+            }}
           >
             ✕ Remove file
           </button>
@@ -393,7 +484,7 @@ function FileUploadArea({ uploadedFile, onUpload }: FileUploadAreaProps) {
 
 interface ParameterFieldProps {
   name: string;
-  type: string;
+  type: ParameterDefinition['type'];
   value: unknown;
   min?: number;
   max?: number;

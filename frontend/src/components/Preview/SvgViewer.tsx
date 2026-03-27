@@ -93,8 +93,15 @@ function parseSvgData(data: unknown): ParsedSvg {
 export default function SvgViewer({ data }: SvgViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('svgViewerTheme') as 'dark' | 'light') || 'dark';
+  });
+
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('svgViewerTheme', theme);
+  }, [theme]);
 
   const parsed = useMemo(() => parseSvgData(data), [data]);
 
@@ -131,8 +138,6 @@ export default function SvgViewer({ data }: SvgViewerProps) {
     };
   }, []);
 
-  const viewBox = `0 0 ${parsed.width} ${parsed.height}`;
-
   if (parsed.error) {
     return (
       <div className="svg-viewer">
@@ -160,17 +165,18 @@ export default function SvgViewer({ data }: SvgViewerProps) {
       <div className="svg-viewer__toolbar">
         <button className="svg-viewer__btn" onClick={() => setZoom((currentZoom) => Math.min(currentZoom * 1.25, 20))} title="Zoom in">+</button>
         <button className="svg-viewer__btn" onClick={() => setZoom((currentZoom) => Math.max(currentZoom * 0.8, 0.1))} title="Zoom out">−</button>
+        <button className="svg-viewer__btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">◐</button>
         <button className="svg-viewer__btn" onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }} title="Reset">⊡</button>
         <span className="svg-viewer__zoom">{(zoom * 100).toFixed(0)}%</span>
         <span className="svg-viewer__stats">{parsed.elementCount} elements</span>
       </div>
 
-      <div className="svg-viewer__viewport" onWheel={handleWheel} onMouseDown={handleMouseDown}>
-        <svg
-          ref={svgRef}
-          className="svg-viewer__svg"
-          viewBox={viewBox}
+      <div className={`svg-viewer__viewport svg-viewer__viewport--${theme}`} onWheel={handleWheel} onMouseDown={handleMouseDown}>
+        <div
+          className="svg-viewer__canvas"
           style={{
+            width: parsed.width,
+            height: parsed.height,
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
           }}
           dangerouslySetInnerHTML={{ __html: parsed.content }}

@@ -91,3 +91,17 @@ export async function uploadFile(
   }
   return resp.json();
 }
+
+export function clearSessionUploadCache(
+  sessionId: string,
+): Promise<{
+  session_id: string;
+  removed_runs: number;
+  removed_result_files: number;
+  removed_upload_files: number;
+  removed_db_rows: number;
+}> {
+  return request(`/upload/session/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  });
+}

@@ -20,8 +20,8 @@ async def get_node_result(session_id: str, node_id: str) -> dict[str, Any]:
     cache = get_shared_cache()
     result_hash: str | None = None
 
-    # Search execution records for this session to find the node's result hash
-    for _run_id, status in _execution_status.items():
+    # Search execution records for this session in reverse order (most recent first) to find the node's result hash
+    for _run_id, status in reversed(_execution_status.items()):
         if status.get("session_id") == session_id:
             engine = _engines.get(_run_id)
             if engine is not None:

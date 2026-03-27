@@ -1,4 +1,6 @@
 """Base plugin interface for the processing pipeline."""
+from __future__ import annotations
+
 import abc
 import hashlib
 import json
@@ -23,6 +25,19 @@ class PortDefinition(BaseModel):
     description: str = ""
 
 
+class ParameterVisibilityCondition(BaseModel):
+    parameter: str | None = None
+    equals: Any | None = None
+    not_equals: Any | None = None
+    one_of: list[Any] | None = None
+    none_of: list[Any] | None = None
+    all: list[ParameterVisibilityCondition] | None = None
+    any: list[ParameterVisibilityCondition] | None = None
+
+
+ParameterVisibilityCondition.model_rebuild()
+
+
 class ParameterDefinition(BaseModel):
     name: str
     type: str  # "number", "string", "boolean", "select", "color"
@@ -32,6 +47,7 @@ class ParameterDefinition(BaseModel):
     step: float | None = None
     options: list[str] | None = None
     description: str = ""
+    visible_if: ParameterVisibilityCondition | None = None
 
 
 class PluginSchema(BaseModel):

@@ -19,6 +19,23 @@ interface PreviewWindowProps {
   error?: string | null;
 }
 
+function getPathPayload(data: Record<string, unknown>): unknown {
+  const normalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') return [value];
+    return value;
+  };
+
+  const keys = ['paths', 'path', 'PATH'] as const;
+  for (const key of keys) {
+    if (key in data && data[key] != null) {
+      return normalize(data[key]);
+    }
+  }
+
+  return normalize(data);
+}
+
 export default function PreviewWindow({
   visible,
   onClose,
@@ -160,7 +177,7 @@ export default function PreviewWindow({
                 <RasterViewer data={resultData.image ?? resultData} />
               )}
               {resolvedType === 'path' && (
-                <VectorViewer data={resultData.paths ?? resultData} />
+                <VectorViewer data={getPathPayload(resultData)} />
               )}
               {resolvedType === 'gcode' && (
                 <GCodeViewer data={String(resultData.gcode ?? '')} />
@@ -200,7 +217,7 @@ export default function PreviewWindow({
 function detectOutputType(data: Record<string, unknown> | null | undefined): string {
   if (!data) return 'unknown';
   if ('image' in data) return 'image';
-  if ('paths' in data) return 'path';
+  if ('paths' in data || 'path' in data || 'PATH' in data) return 'path';
   if ('gcode' in data) return 'gcode';
   if ('text' in data) return 'text';
   if ('vector' in data) return 'vector';
