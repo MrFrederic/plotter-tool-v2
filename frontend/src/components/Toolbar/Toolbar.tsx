@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import './Toolbar.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
-import { executePipeline, savePipeline } from '../../api/rest';
+import { executePipeline } from '../../api/rest';
+import type { ExecutePipelinePayload } from '../../api/rest';
 import GlitchText from '../common/GlitchText';
 
 const EXCLUDED_IDS = new Set([END_NODE_ID]);
@@ -14,10 +15,8 @@ export default function Toolbar() {
   const setExecuting = usePipelineStore((s) => s.setExecuting);
   const clearTelemetry = usePipelineStore((s) => s.clearTelemetry);
   const addTelemetryMessage = usePipelineStore((s) => s.addTelemetryMessage);
-  const currentPipelineId = usePipelineStore((s) => s.currentPipelineId);
+  const sessionId = usePipelineStore((s) => s.sessionId);
   const pipelineName = usePipelineStore((s) => s.pipelineName);
-  const projectId = usePipelineStore((s) => s.projectId);
-  const setCurrentPipeline = usePipelineStore((s) => s.setCurrentPipeline);
 
   // Count only processing nodes (not start/end) for display
   const processNodeCount = nodes.filter(
@@ -31,23 +30,19 @@ export default function Toolbar() {
       setExecuting(true);
       clearTelemetry();
 
-      // Only filter out the End node — Start is now a real backend plugin
       const syncNodes = nodes.filter((n) => !EXCLUDED_IDS.has(n.id));
       const syncEdges = edges.filter((e) => !EXCLUDED_IDS.has(e.target));
 
-      const pipelineData: Record<string, unknown> = {
-        id: currentPipelineId,
-        project_id: projectId,
-        name: pipelineName,
+      const payload: ExecutePipelinePayload = {
+        session_id: sessionId,
         nodes: syncNodes.map((n) => ({
           id: n.id,
           plugin_name: n.data.pluginName,
           pos_x: n.position.x,
           pos_y: n.position.y,
-          params: n.data.params,
+          params: n.data.params as Record<string, unknown>,
         })),
         edges: syncEdges.map((e) => ({
-          id: e.id,
           source_node_id: e.source,
           source_output: e.sourceHandle || 'output',
           target_node_id: e.target,
@@ -55,13 +50,7 @@ export default function Toolbar() {
         })),
       };
 
-      const saved = await savePipeline(pipelineData);
-      const pipelineId = (saved.id as string) || currentPipelineId;
-
-      if (pipelineId) {
-        setCurrentPipeline(pipelineId, pipelineName);
-        await executePipeline(pipelineId);
-      }
+      await executePipeline(payload);
     } catch (err) {
       setExecuting(false);
       const errorMsg = err instanceof Error ? err.message : 'Pipeline execution failed';
@@ -72,19 +61,7 @@ export default function Toolbar() {
         timestamp: new Date().toISOString(),
       });
     }
-  }, [
-    isExecuting,
-    processNodeCount,
-    nodes,
-    edges,
-    currentPipelineId,
-    projectId,
-    pipelineName,
-    setExecuting,
-    clearTelemetry,
-    setCurrentPipeline,
-    addTelemetryMessage,
-  ]);
+  }, [isExecuting, processNodeCount, nodes, edges, sessionId, setExecuting, clearTelemetry, addTelemetryMessage]);
 
   return (
     <div className="toolbar">

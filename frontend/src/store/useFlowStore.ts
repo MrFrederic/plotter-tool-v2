@@ -8,7 +8,6 @@ import {
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
-  addEdge,
   type NodeChange,
 } from '@xyflow/react';
 import type { NodeStatus, PluginSchema, UploadedFile } from '../types';

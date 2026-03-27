@@ -64,6 +64,29 @@ class FileSystemCache:
             return None
         return json.loads(raw)
 
+    # ── deletion ─────────────────────────────────────────────────────────
+
+    async def delete(self, hash_key: str, extension: str = ".bin") -> bool:
+        """Remove a specific cached file. Returns True if file was removed."""
+        path = self.get_path(hash_key, extension)
+        async with self._lock:
+            exists = await asyncio.to_thread(path.exists)
+            if exists:
+                await asyncio.to_thread(path.unlink)
+                return True
+        return False
+
+    async def delete_by_prefix(self, prefix: str) -> int:
+        """Remove all cached files whose name starts with *prefix*."""
+        count = 0
+        async with self._lock:
+            items = await asyncio.to_thread(lambda: list(self._base_dir.iterdir()))
+            for item in items:
+                if item.is_file() and item.name.startswith(prefix):
+                    await asyncio.to_thread(item.unlink)
+                    count += 1
+        return count
+
     # ── maintenance ───────────────────────────────────────────────────────
 
     async def clear(self) -> int:
