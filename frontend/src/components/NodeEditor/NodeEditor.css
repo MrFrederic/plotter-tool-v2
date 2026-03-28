@@ -10,9 +10,9 @@
 
 .node-editor .react-flow__controls {
   background: var(--bg-panel);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-mid);
   border-radius: 0;
-  box-shadow: none;
+  box-shadow: 0 0 8px rgba(0,0,0,0.4);
 }
 
 .node-editor .react-flow__controls-button {
@@ -25,20 +25,63 @@
 }
 
 .node-editor .react-flow__controls-button:hover {
-  background: var(--border-color);
-  fill: var(--accent-cyan);
+  background: var(--border-mid);
+  fill: var(--accent-amber);
 }
 
 .node-editor .react-flow__minimap {
   border-radius: 0;
+  border: 1px solid var(--border-mid);
+  background: var(--bg-primary);
+}
+
+.node-editor .react-flow__minimap-mask {
+  fill: rgba(9, 9, 16, 0.7);
+}
+
+.node-editor .react-flow__minimap-node {
+  fill: var(--bg-secondary);
+  stroke: var(--border-mid);
 }
 
 .node-editor .react-flow__edge-path {
   stroke: var(--accent-cyan);
-  stroke-opacity: 0.6;
+  stroke-opacity: 0.5;
+}
+
+.node-editor .react-flow__selection {
+  background: rgba(232, 150, 10, 0.04);
+  border: 1px solid var(--accent-amber-dim);
+}
+
+.node-editor .react-flow__pane:active {
+  cursor: grabbing;
 }
 
 /* Edge flow animation */
 @keyframes edgeFlow {
   to { stroke-dashoffset: -20; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-editor .react-flow__edge-path,
+  .node-editor [style*="edgeFlow"] {
+    animation: none !important;
+  }
+}
+
+/* Easter egg: faint route-stamp watermark on canvas chrome */
+.node-editor::after {
+  content: 'PLT/DAG/v2';
+  position: absolute;
+  bottom: 40px;
+  right: 14px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--accent-amber);
+  opacity: 0.04;
+  letter-spacing: 2px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
 }

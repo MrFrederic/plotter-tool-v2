@@ -8,9 +8,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 14px;
-  background: rgba(13, 13, 20, 0.85);
-  backdrop-filter: blur(4px);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--accent-amber-dim);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   font-family: var(--font-mono);
   font-size: 11px;
   pointer-events: auto;
@@ -23,10 +23,11 @@
 }
 
 .toolbar__label {
-  color: var(--text-primary);
+  color: var(--accent-amber);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
+  text-shadow: 0 0 5px var(--accent-amber-dim);
 }
 
 .toolbar__separator {
@@ -48,13 +49,13 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--easing-ui);
 }
 
 .toolbar__btn:hover:not(:disabled) {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-  box-shadow: 0 0 8px var(--border-glow);
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  box-shadow: 0 0 6px var(--accent-amber-glow);
 }
 
 .toolbar__btn:disabled {
@@ -63,17 +64,18 @@
 }
 
 .toolbar__btn--execute {
-  border-color: var(--success);
-  color: var(--success);
+  border-color: var(--status-done);
+  color: var(--status-done);
 }
 
 .toolbar__btn--execute:hover:not(:disabled) {
-  border-color: var(--success);
-  color: var(--success);
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+  border-color: var(--status-done);
+  color: var(--status-done);
+  box-shadow: 0 0 8px rgba(46, 168, 110, 0.25);
 }
 
 .toolbar__btn--active {
+  border-left: 2px solid var(--accent-amber);
   border-color: var(--accent-amber);
   color: var(--accent-amber);
   animation: pulseGlow 1.5s ease-in-out infinite;
@@ -82,6 +84,17 @@
 .toolbar__executing {
   color: var(--accent-amber);
   font-size: 11px;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
   animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes btnActivate {
+  0% { box-shadow: 0 0 0 0 var(--accent-amber-glow); }
+  60% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbar__btn--active,
+  .toolbar__executing { animation: none; }
 }

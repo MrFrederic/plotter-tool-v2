@@ -2,13 +2,13 @@ import { useEffect, useRef } from 'react';
 import './TelemetryPanel.css';
 import usePipelineStore from '../../store/usePipelineStore';
 
-const statusSymbol: Record<string, string> = {
-  IDLE: '○',
+const STATUS_SYMBOLS: Record<string, string> = {
+  IDLE:    '○',
   WAITING: '◌',
   RUNNING: '▶',
-  CACHED: '◆',
-  DONE: '✓',
-  ERROR: '✗',
+  DONE:    '■',
+  ERROR:   '✕',
+  CACHED:  '◈',
 };
 
 export default function TelemetryPanel() {
@@ -29,6 +29,11 @@ export default function TelemetryPanel() {
         {isExecuting && (
           <span className="telemetry-panel__running">● PROCESSING</span>
         )}
+        <span
+          className="fui-barcode"
+          aria-hidden="true"
+          style={{ pointerEvents: 'none', marginLeft: 'auto', flexShrink: 0 }}
+        />
         <span className="telemetry-panel__count">
           {telemetryLog.length} entries
         </span>
@@ -51,7 +56,7 @@ export default function TelemetryPanel() {
               {msg.timestamp.split('T')[1]?.slice(0, 12) || msg.timestamp}
             </span>
             <span className="telemetry-panel__symbol">
-              {statusSymbol[msg.status] || '?'}
+              {STATUS_SYMBOLS[msg.status] || '?'}
             </span>
             <span className="telemetry-panel__node-id">{msg.node_id}</span>
             <span className="telemetry-panel__status">{msg.status}</span>

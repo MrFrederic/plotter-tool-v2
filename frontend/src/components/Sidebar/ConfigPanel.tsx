@@ -173,6 +173,13 @@ export default function ConfigPanel() {
         <span className="config-panel__title">
           {isStart ? 'FILE INPUT' : isEnd ? 'FILE OUTPUT' : 'PARAMETERS'}
         </span>
+        <span
+          className="fui-stamp"
+          aria-hidden="true"
+          style={{ pointerEvents: 'none', fontSize: 7, letterSpacing: '1px' }}
+        >
+          CFG
+        </span>
         <span className="config-panel__status" data-status={status}>
           {status}
         </span>

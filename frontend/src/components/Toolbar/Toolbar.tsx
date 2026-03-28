@@ -20,6 +20,11 @@ export default function Toolbar() {
         <span className="toolbar__node-count">
           {processNodeCount} module{processNodeCount !== 1 ? 's' : ''}
         </span>
+        <span
+          className="fui-barcode fui-barcode--dense"
+          aria-hidden="true"
+          style={{ pointerEvents: 'none', marginLeft: 4 }}
+        />
       </div>
 
       {isExecuting && (

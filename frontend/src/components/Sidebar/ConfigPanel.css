@@ -12,7 +12,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-mid);
   background: var(--bg-secondary);
 }
 
@@ -20,8 +20,8 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.5px;
-  color: var(--accent-cyan);
-  text-shadow: 0 0 6px var(--accent-cyan);
+  color: var(--accent-amber);
+  text-shadow: 0 0 5px var(--accent-amber-dim);
 }
 
 .config-panel__status {
@@ -38,8 +38,8 @@
 }
 
 .config-panel__status[data-status='DONE'] {
-  color: var(--success);
-  border-color: var(--success);
+  color: var(--status-done);
+  border-color: var(--status-done);
 }
 
 .config-panel__status[data-status='ERROR'] {
@@ -124,7 +124,7 @@
   appearance: none;
   width: 12px;
   height: 12px;
-  background: var(--accent-cyan);
+  background: var(--accent-amber);
   border: none;
   cursor: pointer;
 }
@@ -170,7 +170,7 @@
 }
 
 .config-panel__toggle input:checked + .config-panel__toggle-track {
-  background: rgba(0, 240, 255, 0.3);
+  background: rgba(232, 150, 10, 0.3);
 }
 
 .config-panel__toggle-thumb {
@@ -185,7 +185,7 @@
 
 .config-panel__toggle input:checked + .config-panel__toggle-track .config-panel__toggle-thumb {
   left: 18px;
-  background: var(--accent-cyan);
+  background: var(--accent-amber);
 }
 
 .config-panel__toggle-label {
@@ -409,4 +409,8 @@
   color: var(--danger);
   text-align: left;
   line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .config-panel { /* no animations currently, placeholder */ }
 }

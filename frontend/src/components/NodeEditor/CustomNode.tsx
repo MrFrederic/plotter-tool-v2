@@ -6,12 +6,12 @@ import { isHandleAvailableDuringDrag } from '../../utils/flowRules';
 import './CustomNode.css';
 
 const statusColorVars: Record<string, string> = {
-  IDLE: 'var(--text-dim)',
-  WAITING: 'var(--accent-amber)',
-  RUNNING: 'var(--accent-amber)',
-  CACHED: 'var(--accent-cyan)',
-  DONE: 'var(--success)',
-  ERROR: 'var(--danger)',
+  IDLE: 'var(--status-idle)',
+  WAITING: 'var(--status-waiting)',
+  RUNNING: 'var(--status-running)',
+  CACHED: 'var(--status-cached)',
+  DONE: 'var(--status-done)',
+  ERROR: 'var(--status-error)',
 };
 
 /** Max pointer travel in px to count as a click rather than a drag-start. */
@@ -31,7 +31,7 @@ function CustomNode({ id, data, selected }: NodeProps<Node<FlowNodeData>>) {
 
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
 
-  const handleOutputPointerDown = useCallback((e: React.PointerEvent, _outputName: string) => {
+  const handleOutputPointerDown = useCallback((e: React.PointerEvent) => {
     pointerRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
@@ -149,7 +149,7 @@ function CustomNode({ id, data, selected }: NodeProps<Node<FlowNodeData>>) {
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onPointerDown={(e) => handleOutputPointerDown(e, output.name)}
+                  onPointerDown={(e) => handleOutputPointerDown(e)}
                   onPointerUp={(e) => handleOutputPointerUp(e, output.name)}
                 />
               </div>

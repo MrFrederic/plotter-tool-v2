@@ -28,10 +28,10 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div
           style={{
             padding: '1rem',
-            color: '#ff3366',
-            fontFamily: 'monospace',
-            background: '#1a0a10',
-            border: '1px solid #ff3366',
+            color: 'var(--status-error)',
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--status-error)',
             margin: '4px',
           }}
         >
@@ -43,12 +43,12 @@ export default class ErrorBoundary extends Component<Props, State> {
             onClick={() => this.setState({ hasError: false, error: null })}
             style={{
               marginTop: '0.5rem',
-              color: '#00f0ff',
+              color: 'var(--accent-amber)',
               background: 'transparent',
-              border: '1px solid #00f0ff',
+              border: '1px solid var(--accent-amber)',
               padding: '4px 8px',
               cursor: 'pointer',
-              fontFamily: 'monospace',
+              fontFamily: 'var(--font-mono)',
             }}
           >
             Retry

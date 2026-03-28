@@ -12,7 +12,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-mid);
   background: var(--bg-secondary);
 }
 
@@ -20,8 +20,8 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.5px;
-  color: var(--accent-cyan);
-  text-shadow: 0 0 6px var(--accent-cyan);
+  color: var(--accent-amber);
+  text-shadow: 0 0 5px var(--accent-amber-dim);
 }
 
 .node-inventory__count {
@@ -64,7 +64,7 @@
   font-weight: 600;
   letter-spacing: 1px;
   color: var(--accent-amber);
-  text-shadow: 0 0 4px rgba(255, 170, 0, 0.3);
+  text-shadow: 0 0 4px var(--accent-amber-glow);
   user-select: none;
 }
 
@@ -80,13 +80,13 @@
 }
 
 .node-inventory__item:hover {
-  background: rgba(0, 240, 255, 0.05);
-  border-left-color: var(--accent-cyan);
+  background: var(--accent-amber-glow);
+  border-left-color: var(--accent-amber);
 }
 
 .node-inventory__item:active {
   cursor: grabbing;
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(232, 150, 10, 0.12);
 }
 
 .node-inventory__item-name {
@@ -106,4 +106,10 @@
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-inventory__item {
+    transition: none;
+  }
 }

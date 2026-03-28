@@ -1,0 +1,9 @@
+.scanline-overlay {
+  animation: scanlineScroll 0.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanline-overlay {
+    animation: none;
+  }
+}

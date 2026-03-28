@@ -9,8 +9,8 @@
 }
 
 .custom-node--selected {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 12px var(--border-glow), inset 0 0 12px rgba(0, 240, 255, 0.05);
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 10px var(--border-glow), inset 0 0 8px var(--accent-amber-glow);
 }
 
 /* Status-based node styling */
@@ -25,40 +25,24 @@
 }
 
 .custom-node--status-done {
-  border-color: var(--success);
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+  border-color: var(--status-done);
+  box-shadow: 0 0 6px rgba(46, 168, 110, 0.2);
 }
 
 .custom-node--status-error {
-  border-color: var(--danger);
-  animation: shakeNode 0.4s ease-in-out, chromaticAberration 2s infinite;
-  box-shadow: 0 0 12px rgba(255, 51, 102, 0.3);
-}
-
-@keyframes chromaticAberration {
-  0%, 100% {
-    text-shadow: none;
-    filter: none;
-  }
-  25% {
-    text-shadow: -1px 0 rgba(255, 0, 0, 0.5), 1px 0 rgba(0, 255, 255, 0.5);
-  }
-  50% {
-    text-shadow: 1px 0 rgba(255, 0, 0, 0.4), -1px 0 rgba(0, 255, 255, 0.4);
-  }
-  75% {
-    text-shadow: -0.5px 0 rgba(255, 0, 0, 0.6), 0.5px 0 rgba(0, 255, 255, 0.6);
-  }
+  border-color: var(--status-error);
+  animation: shakeNode 0.4s ease-in-out;
+  box-shadow: 0 0 12px rgba(204, 34, 68, 0.3);
 }
 
 .custom-node--status-cached {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+  border-color: var(--status-cached);
+  box-shadow: 0 0 6px rgba(0, 204, 221, 0.12);
 }
 
 @keyframes pulsingNodeBorder {
-  0%, 100% { box-shadow: 0 0 4px var(--status-color); }
-  50% { box-shadow: 0 0 16px var(--status-color), 0 0 24px var(--status-color); }
+  0%, 100% { box-shadow: 0 0 3px var(--status-color); }
+  50% { box-shadow: 0 0 12px var(--status-color), 0 0 18px var(--status-color); }
 }
 
 @keyframes shakeNode {
@@ -70,7 +54,7 @@
 .custom-node__status-bar {
   height: 2px;
   background: var(--status-color);
-  box-shadow: 0 0 6px var(--status-color);
+  box-shadow: 0 0 4px var(--status-color);
 }
 
 .custom-node__header {
@@ -223,6 +207,7 @@
 .custom-node--blocked {
   opacity: 0.45;
   filter: saturate(0.2);
+  pointer-events: none;
 }
 
 .custom-node--blocked .custom-node__status-bar {
@@ -245,4 +230,10 @@
 
 .custom-node__port-label--unavailable {
   opacity: 0.25;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custom-node--status-running,
+  .custom-node--status-waiting,
+  .custom-node--status-error { animation: none; }
 }

@@ -1,18 +1,63 @@
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-panel: #0d0d14;
-  --accent-cyan: #00f0ff;
-  --accent-magenta: #ff00aa;
-  --accent-amber: #ffaa00;
-  --text-primary: #c8c8d0;
-  --text-dim: #4a4a5a;
-  --border-color: #1a1a2e;
-  --border-glow: rgba(0, 240, 255, 0.3);
-  --danger: #ff3366;
-  --success: #00ff88;
+  /* ── Surface tiers ─────────────────────────────────────────── */
+  --bg-primary:   #090910;
+  --bg-secondary: #0f0f18;
+  --bg-panel:     #0c0c14;
+  --bg-inset:     #07070e;
 
-  --font-mono: 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', monospace;
+  /* ── Accent hierarchy ──────────────────────────────────────── */
+  --accent-amber:      #e8960a;
+  --accent-amber-dim:  rgba(232, 150, 10, 0.45);
+  --accent-amber-glow: rgba(232, 150, 10, 0.15);
+
+  --accent-cyan:      #00ccdd;
+  --accent-cyan-dim:  rgba(0, 204, 221, 0.35);
+  --accent-cyan-glow: rgba(0, 204, 221, 0.10);
+
+  --accent-magenta: #cc0088;
+
+  /* ── Semantic status ───────────────────────────────────────── */
+  --status-idle:    #3a3a4a;
+  --status-running: #e8960a;
+  --status-waiting: rgba(232, 150, 10, 0.7);
+  --status-done:    #2ea86e;
+  --status-error:   #cc2244;
+  --status-cached:  #00ccdd;
+
+  /* Backward-compat aliases (referenced in component CSS) */
+  --danger:  #cc2244;
+  --success: #2ea86e;
+
+  /* ── Text ──────────────────────────────────────────────────── */
+  --text-primary:   #b8b8c4;
+  --text-secondary: #7a7a8c;
+  --text-dim:       #3e3e52;
+  --text-amber:     #e8960a;
+
+  /* ── Borders ───────────────────────────────────────────────── */
+  --border-color:    #181826;
+  --border-mid:      #242438;
+  --border-glow:     rgba(232, 150, 10, 0.18);
+  --border-glow-cyan: rgba(0, 204, 221, 0.22);
+
+  /* ── Typography ────────────────────────────────────────────── */
+  --font-mono:       'IBM Plex Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-size-base:  13px;
+  --font-size-sm:    11px;
+  --font-size-xs:    10px;
+  --font-size-2xs:   9px;
+
+  /* ── Spacing rhythm (4px base) ─────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+
+  /* ── Motion limits ─────────────────────────────────────────── */
+  --duration-fast: 0.12s;
+  --duration-base: 0.2s;
+  --duration-slow: 0.4s;
+  --easing-ui: ease;
 }
 
 *,
@@ -39,21 +84,24 @@ body {
   font-family: var(--font-mono);
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-shadow: 0 1px 0 rgba(0, 240, 255, 0.03);
+  text-shadow: 0 1px 0 rgba(232, 150, 10, 0.03);
 }
 
+/* ── Animations ────────────────────────────────────────────────── */
+
 @keyframes scanlineScroll {
-  0% { background-position: 0 0; }
+  0%   { background-position: 0 0; }
   100% { background-position: 0 4px; }
 }
 
+/* pulseGlow: kept for backward compat (Toolbar, TelemetryPanel) */
 @keyframes pulseGlow {
-  0%, 100% { text-shadow: 0 0 4px currentColor; }
-  50% { text-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
+  0%, 100% { opacity: 0.9; }
+  50%       { opacity: 0.6; }
 }
 
 @keyframes blink {
@@ -61,25 +109,37 @@ body {
   50%, 100% { opacity: 0; }
 }
 
-/* Utility classes */
+@keyframes bracketPulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+@keyframes edgeFlow {
+  to { stroke-dashoffset: -20; }
+}
+
+/* ── Glow utilities ────────────────────────────────────────────── */
+
 .glow-text {
-  text-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
+  text-shadow: 0 0 5px currentColor;
 }
 
 .glow-cyan {
   color: var(--accent-cyan);
-  text-shadow: 0 0 6px var(--accent-cyan), 0 0 12px var(--accent-cyan);
+  text-shadow: 0 0 5px var(--accent-cyan);
 }
 
 .glow-magenta {
   color: var(--accent-magenta);
-  text-shadow: 0 0 6px var(--accent-magenta);
+  text-shadow: 0 0 5px var(--accent-magenta);
 }
 
 .glow-amber {
   color: var(--accent-amber);
-  text-shadow: 0 0 6px var(--accent-amber);
+  text-shadow: 0 0 5px var(--accent-amber);
 }
+
+/* ── Text utilities ────────────────────────────────────────────── */
 
 .text-dim {
   color: var(--text-dim);
@@ -93,7 +153,40 @@ body {
   color: var(--success);
 }
 
-/* Custom scrollbar */
+/* ── Screen-reader only ────────────────────────────────────────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Shared panel header baseline ──────────────────────────────── */
+
+.fui-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-mid);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  user-select: none;
+}
+
+/* ── Custom scrollbar ──────────────────────────────────────────── */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -112,17 +205,19 @@ body {
   background: var(--text-dim);
 }
 
-/* Firefox scrollbar */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) var(--bg-primary);
 }
 
-/* Selection */
+/* ── Selection ─────────────────────────────────────────────────── */
+
 ::selection {
-  background: rgba(0, 240, 255, 0.2);
-  color: var(--accent-cyan);
+  background: rgba(232, 150, 10, 0.18);
+  color: var(--accent-amber);
 }
+
+/* ── Element defaults ──────────────────────────────────────────── */
 
 a {
   color: var(--accent-cyan);
@@ -142,17 +237,150 @@ input,
 select,
 textarea {
   font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--bg-primary);
+  font-size: var(--font-size-sm);
+  background: var(--bg-inset);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   outline: none;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--accent-cyan);
+  border-color: var(--accent-amber);
   box-shadow: 0 0 4px var(--border-glow);
+}
+
+/* ============================================================
+   BARCODE / DECAL UTILITY PRIMITIVES
+   Decorative ambient chrome texture only.
+   Max opacity: 0.18. Never on data surfaces.
+   aria-hidden="true" required on all decal elements.
+   ============================================================ */
+
+/* PDF417-inspired horizontal stripe block */
+.fui-barcode {
+  display: inline-block;
+  width: 40px;
+  height: 12px;
+  overflow: hidden;
+  opacity: 0.12;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+  /* Simulate stripe pattern via CSS background */
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--accent-amber) 0px,
+    var(--accent-amber) 2px,
+    transparent 2px,
+    transparent 3px,
+    var(--accent-amber) 3px,
+    var(--accent-amber) 4px,
+    transparent 4px,
+    transparent 7px,
+    var(--accent-amber) 7px,
+    var(--accent-amber) 9px,
+    transparent 9px,
+    transparent 12px,
+    var(--accent-amber) 12px,
+    var(--accent-amber) 13px,
+    transparent 13px,
+    transparent 14px,
+    var(--accent-amber) 14px,
+    var(--accent-amber) 16px,
+    transparent 16px,
+    transparent 20px,
+    var(--accent-amber) 20px,
+    var(--accent-amber) 22px,
+    transparent 22px,
+    transparent 24px,
+    var(--accent-amber) 24px,
+    var(--accent-amber) 25px,
+    transparent 25px,
+    transparent 27px,
+    var(--accent-amber) 27px,
+    var(--accent-amber) 29px,
+    transparent 29px,
+    transparent 32px,
+    var(--accent-amber) 32px,
+    var(--accent-amber) 34px,
+    transparent 34px,
+    transparent 38px,
+    var(--accent-amber) 38px,
+    var(--accent-amber) 40px
+  );
+}
+
+/* Density variant: tighter stripes (used in compact headers) */
+.fui-barcode--dense {
+  width: 28px;
+  height: 8px;
+  background-size: 14px 100%;
+  opacity: 0.10;
+}
+
+/* Taller variant for panel side rails */
+.fui-barcode--tall {
+  width: 16px;
+  height: 24px;
+  background-image: repeating-linear-gradient(
+    180deg,
+    var(--accent-amber) 0px,
+    var(--accent-amber) 1px,
+    transparent 1px,
+    transparent 2px,
+    var(--accent-amber) 2px,
+    var(--accent-amber) 3px,
+    transparent 3px,
+    transparent 5px,
+    var(--accent-amber) 5px,
+    var(--accent-amber) 7px,
+    transparent 7px,
+    transparent 9px
+  );
+  opacity: 0.10;
+}
+
+/* Hover reveal — use sparingly on chrome-only elements */
+.fui-barcode--hover-reveal {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--easing-ui);
+}
+
+.fui-barcode--hover-reveal:hover,
+*:hover > .fui-barcode--hover-reveal {
+  opacity: 0.16;
+}
+
+/* Sequence ID stamp — tiny text-format lore mark */
+.fui-stamp {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--accent-amber);
+  opacity: 0.08;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+/* Geometric corner bracket mark */
+.fui-bracket::before {
+  content: '\2310';
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-amber);
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fui-barcode--hover-reveal {
+    opacity: 0.10;
+    transition: none;
+  }
 }

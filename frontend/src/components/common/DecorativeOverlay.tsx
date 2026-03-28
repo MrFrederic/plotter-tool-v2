@@ -28,10 +28,10 @@ export default function DecorativeOverlay() {
           position: 'absolute',
           top: 8,
           left: 8,
-          color: 'var(--text-dim)',
+          color: 'var(--accent-amber)',
           fontSize: 9,
           fontFamily: 'var(--font-mono)',
-          opacity: 0.4,
+          opacity: 0.25,
           lineHeight: 1.6,
         }}
       >
@@ -46,10 +46,10 @@ export default function DecorativeOverlay() {
           position: 'absolute',
           bottom: 8,
           right: 8,
-          color: 'var(--text-dim)',
+          color: 'var(--accent-amber)',
           fontSize: 9,
           fontFamily: 'var(--font-mono)',
-          opacity: 0.4,
+          opacity: 0.25,
           textAlign: 'right',
           lineHeight: 1.6,
         }}
@@ -65,10 +65,10 @@ export default function DecorativeOverlay() {
           position: 'absolute',
           top: 8,
           right: 8,
-          color: 'var(--text-dim)',
+          color: 'var(--accent-amber)',
           fontSize: 9,
           fontFamily: 'var(--font-mono)',
-          opacity: 0.3,
+          opacity: 0.18,
         }}
       >
         ┐
@@ -80,10 +80,10 @@ export default function DecorativeOverlay() {
           position: 'absolute',
           bottom: 8,
           left: 8,
-          color: 'var(--text-dim)',
+          color: 'var(--accent-amber)',
           fontSize: 9,
           fontFamily: 'var(--font-mono)',
-          opacity: 0.3,
+          opacity: 0.18,
         }}
       >
         └

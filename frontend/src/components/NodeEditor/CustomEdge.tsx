@@ -17,6 +17,10 @@ const CustomEdge: FC<EdgeProps> = ({
 }) => {
   const hasNoData = useFlowStore((s) => s.noDataEdgeIds.has(id));
 
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -36,10 +40,10 @@ const CustomEdge: FC<EdgeProps> = ({
         interactionWidth={interactionWidth}
         style={{
           ...style,
-          stroke: 'var(--text-dim)',
+          stroke: 'var(--status-idle)',
           strokeWidth: 1,
           fill: 'none',
-          strokeOpacity: 0.25,
+          strokeOpacity: 0.2,
           strokeDasharray: '3 5',
         }}
       />
@@ -59,22 +63,24 @@ const CustomEdge: FC<EdgeProps> = ({
           stroke: 'var(--accent-cyan)',
           strokeWidth: 1.5,
           fill: 'none',
-          strokeOpacity: 0.4,
+          strokeOpacity: 0.35,
         }}
       />
-      <path
-        d={edgePath}
-        style={{
-          stroke: 'var(--accent-cyan)',
-          strokeWidth: 1.5,
-          fill: 'none',
-          strokeDasharray: '6 4',
-          strokeDashoffset: 0,
-          animation: 'edgeFlow 1.5s linear infinite',
-          strokeOpacity: 0.8,
-          pointerEvents: 'none',
-        }}
-      />
+      {!prefersReducedMotion && (
+        <path
+          d={edgePath}
+          style={{
+            stroke: 'var(--accent-cyan)',
+            strokeWidth: 1.5,
+            fill: 'none',
+            strokeDasharray: '6 4',
+            strokeDashoffset: 0,
+            animation: 'edgeFlow 1.5s linear infinite',
+            strokeOpacity: 0.65,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
     </>
   );
 };

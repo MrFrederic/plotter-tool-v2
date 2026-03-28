@@ -13,6 +13,11 @@ export default function GlitchText({ text, duration = 600, className }: GlitchTe
   const frameRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplay(text);
+      return;
+    }
+
     let iteration = 0;
     const totalSteps = Math.ceil(duration / 30);
 
