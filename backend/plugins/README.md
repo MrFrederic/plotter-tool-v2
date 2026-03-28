@@ -1,6 +1,6 @@
 # Plugin Development Guide
 
-This directory contains all processing plugins for the Plotter-Tool pipeline engine. Plugins are automatically discovered at startup — just drop a Python file here and restart the server.
+This directory contains all processing plugins for the Plotter-Tool pipeline engine. Plugins are automatically discovered at startup — create a folder for each plugin, add a `plugin.py` file inside it, and restart the server.
 
 ## Plugin Interface
 
@@ -118,9 +118,9 @@ Each passthrough plugin has no parameters and a trivial `process()` that returns
 
 ## Step-by-Step: Creating a New Plugin
 
-### 1. Create the file
+### 1. Create the plugin folder and file
 
-Create `backend/plugins/my_plugin.py`.
+Create `backend/plugins/my_plugin/plugin.py`.
 
 ### 2. Define the schema
 

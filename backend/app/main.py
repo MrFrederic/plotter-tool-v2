@@ -5,6 +5,7 @@ import logging
 import pkgutil
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -22,46 +23,51 @@ manager = ConnectionManager()
 
 
 def _discover_plugins() -> tuple[dict[str, dict[str, Any]], dict[str, type[BasePlugin]]]:
-    """Scan the plugins directory for BasePlugin subclasses.
-
-    Returns a tuple of ``(legacy_schemas, plugin_classes)`` where
-    *legacy_schemas* maps name → raw dict (from ``PLUGIN_SCHEMA``) and
-    *plugin_classes* maps schema-name → BasePlugin subclass.
-    """
+    """Scan plugin folders for ``plugin.py`` modules exposing ``Plugin``."""
     legacy: dict[str, dict[str, Any]] = {}
     classes: dict[str, type[BasePlugin]] = {}
 
     try:
         import plugins as plugins_pkg
 
-        for _importer, modname, _ispkg in pkgutil.iter_modules(plugins_pkg.__path__):
-            try:
-                mod = importlib.import_module(f"plugins.{modname}")
+        plugins_root = Path(next(iter(plugins_pkg.__path__)))
 
-                # New-style: look for a module-level ``Plugin`` attribute
+        for _importer, modname, ispkg in pkgutil.iter_modules(plugins_pkg.__path__):
+            if not ispkg or modname.startswith("_"):
+                continue
+
+            plugin_file = plugins_root / modname / "plugin.py"
+            if not plugin_file.is_file():
+                logger.debug(
+                    "Skipping plugins.%s because no plugin.py was found",
+                    modname,
+                )
+                continue
+
+            try:
+                mod = importlib.import_module(f"plugins.{modname}.plugin")
+
                 plugin_attr = getattr(mod, "Plugin", None)
                 if plugin_attr is not None and _is_plugin_class(plugin_attr):
                     schema_name = plugin_attr.schema().name
                     classes[schema_name] = plugin_attr
-                    logger.info("Loaded plugin class '%s' from plugins.%s", schema_name, modname)
+                    logger.info(
+                        "Loaded plugin class '%s' from plugins.%s.plugin",
+                        schema_name,
+                        modname,
+                    )
                     continue
 
-                # Also scan module for any BasePlugin subclass
                 for _name, obj in inspect.getmembers(mod, inspect.isclass):
                     if _is_plugin_class(obj) and obj is not BasePlugin:
                         schema_name = obj.schema().name
                         if schema_name not in classes:
                             classes[schema_name] = obj
                             logger.info(
-                                "Loaded plugin class '%s' from plugins.%s",
+                                "Loaded plugin class '%s' from plugins.%s.plugin",
                                 schema_name,
                                 modname,
                             )
-
-                # Legacy fallback
-                raw_schema: dict[str, Any] | None = getattr(mod, "PLUGIN_SCHEMA", None)
-                if raw_schema is not None:
-                    legacy[modname] = raw_schema
             except Exception:
                 logger.warning("Failed to load plugin '%s'", modname, exc_info=True)
     except Exception:

@@ -81,11 +81,11 @@ plotter-tool-v2/
 │   │
 │   └── plugins/                 # Drop-in plugin directory
 │       ├── README.md            # Plugin development guide
-│       ├── image_input.py
-│       ├── threshold.py
-│       ├── edge_detection.py
-│       ├── contour_trace.py
-│       └── gcode_output.py
+│       ├── edge_detection/
+│       │   └── plugin.py
+│       ├── pipeline_input/
+│       │   └── plugin.py
+│       └── ...
 │
 ├── frontend/
 │   ├── Dockerfile
@@ -161,7 +161,7 @@ class MyPlugin(BasePlugin):
 Plugin = MyPlugin  # Required for auto-discovery
 ```
 
-Drop the file into `backend/plugins/` and restart the server. It will be auto-discovered.
+Create a folder under `backend/plugins/`, place the plugin in `plugin.py`, and restart the server. It will be auto-discovered.
 
 ## Frontend Architecture
 
