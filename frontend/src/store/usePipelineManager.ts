@@ -86,7 +86,26 @@ interface PipelineManagerState {
 function isValidPipeline(obj: unknown): obj is { nodes: unknown[]; edges: unknown[]; name?: string } {
   if (typeof obj !== 'object' || obj === null) return false;
   const record = obj as Record<string, unknown>;
-  return Array.isArray(record.nodes) && Array.isArray(record.edges);
+  if (!Array.isArray(record.nodes) || !Array.isArray(record.edges)) return false;
+  if (record.name !== undefined && typeof record.name !== 'string') return false;
+  const nodesValid = record.nodes.every(
+    (n: unknown) =>
+      typeof n === 'object' &&
+      n !== null &&
+      typeof (n as Record<string, unknown>).id === 'string' &&
+      typeof (n as Record<string, unknown>).type === 'string' &&
+      typeof (n as Record<string, unknown>).position === 'object' &&
+      typeof (n as Record<string, unknown>).data === 'object',
+  );
+  const edgesValid = record.edges.every(
+    (e: unknown) =>
+      typeof e === 'object' &&
+      e !== null &&
+      typeof (e as Record<string, unknown>).id === 'string' &&
+      typeof (e as Record<string, unknown>).source === 'string' &&
+      typeof (e as Record<string, unknown>).target === 'string',
+  );
+  return nodesValid && edgesValid;
 }
 
 const usePipelineManager = create<PipelineManagerState>((set, get) => ({
@@ -260,7 +279,7 @@ const usePipelineManager = create<PipelineManagerState>((set, get) => ({
       if (!isValidPipeline(item)) continue;
       imported.push({
         id: generateId(),
-        name: (item.name as string) || 'Imported Pipeline',
+        name: item.name || 'Imported Pipeline',
         nodes: item.nodes as SerializedNode[],
         edges: item.edges as SerializedEdge[],
         createdAt: now,
