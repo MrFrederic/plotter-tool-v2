@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import './App.css';
 import NodeEditor from './components/NodeEditor/NodeEditor';
 import NodeInventory from './components/Sidebar/NodeInventory';
@@ -6,10 +6,12 @@ import ConfigPanel from './components/Sidebar/ConfigPanel';
 import TelemetryPanel from './components/Telemetry/TelemetryPanel';
 import PreviewWindow from './components/Preview/PreviewWindow';
 import Toolbar from './components/Toolbar/Toolbar';
+import PipelineTabBar from './components/PipelineTabBar/PipelineTabBar';
 import DecorativeOverlay from './components/common/DecorativeOverlay';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useFlowStore from './store/useFlowStore';
 import usePipelineStore from './store/usePipelineStore';
+import usePipelineManager from './store/usePipelineManager';
 import { useWebSocketBridge } from './hooks/useWebSocketBridge';
 import { usePipelineSync } from './hooks/usePipelineSync';
 import { fetchNodeResult } from './api/rest';
@@ -26,6 +28,26 @@ export default function App() {
   const sessionId = usePipelineStore((s) => s.sessionId);
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
+
+  // Initialize pipeline manager on mount
+  useEffect(() => {
+    usePipelineManager.getState().init();
+  }, []);
+
+  // Debounced auto-save: persist pipeline when flow store changes
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const unsub = useFlowStore.subscribe(() => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        usePipelineManager.getState().saveCurrentPipeline();
+      }, 1000);
+    });
+    return () => {
+      unsub();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState<Record<string, unknown> | null>(null);
@@ -111,6 +133,10 @@ export default function App() {
       <div
         className={`app-layout ${selectedNodeId ? '' : 'app-layout--no-config'}`}
       >
+        <div className="app-layout__tabbar">
+          <PipelineTabBar />
+        </div>
+
         <div className="app-layout__sidebar">
           <ErrorBoundary name="NodeInventory">
             <NodeInventory />
