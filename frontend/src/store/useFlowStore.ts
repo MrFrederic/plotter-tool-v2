@@ -14,6 +14,28 @@ import type { NodeStatus, PluginSchema, UploadedFile } from '../types';
 import { fetchPlugins } from '../api/rest';
 import { computeGraphExecutionState } from '../utils/flowRules';
 
+export interface SerializedNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: {
+    label: string;
+    pluginName: string;
+    category: string;
+    params: Record<string, unknown>;
+    nodeKind?: 'start' | 'end' | 'process';
+  };
+}
+
+export interface SerializedEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  type?: string;
+}
+
 export interface FlowNodeData extends Record<string, unknown> {
   label: string;
   pluginName: string;
@@ -168,6 +190,8 @@ interface FlowState {
   resetExecutionState: () => void;
   removeEdge: (edgeId: string) => void;
   removeNode: (nodeId: string) => void;
+  getSnapshot: () => { nodes: SerializedNode[]; edges: SerializedEdge[] };
+  loadSnapshot: (snapshot: { nodes: SerializedNode[]; edges: SerializedEdge[] }) => void;
 }
 
 const FALLBACK_PLUGINS: PluginSchema[] = [
@@ -538,6 +562,135 @@ const useFlowStore = create<FlowState>((set, get) => ({
           : selectedEdgeId,
       selectedOutputPreview:
         selectedOutputPreview?.nodeId === nodeId ? null : selectedOutputPreview,
+    });
+  },
+  getSnapshot: () => {
+    const { nodes, edges } = get();
+    const serializedNodes: SerializedNode[] = nodes.map((n) => ({
+      id: n.id,
+      type: n.type ?? 'custom',
+      position: { x: n.position.x, y: n.position.y },
+      data: {
+        label: n.data.label,
+        pluginName: n.data.pluginName,
+        category: n.data.category,
+        params: { ...n.data.params },
+        ...(n.data.nodeKind ? { nodeKind: n.data.nodeKind } : {}),
+      },
+    }));
+    const serializedEdges: SerializedEdge[] = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? null,
+      targetHandle: e.targetHandle ?? null,
+      type: e.type,
+    }));
+    return { nodes: serializedNodes, edges: serializedEdges };
+  },
+
+  loadSnapshot: (snapshot) => {
+    const pluginSchemas = get().pluginSchemas;
+    const restoredNodes: Node<FlowNodeData>[] = [];
+    let maxCounter = 0;
+
+    for (const sn of snapshot.nodes) {
+      const match = sn.id.match(/^node_(\d+)_/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxCounter) maxCounter = num;
+      }
+
+      if (sn.id === START_NODE_ID) {
+        restoredNodes.push({
+          id: START_NODE_ID,
+          type: 'start',
+          position: { ...sn.position },
+          data: {
+            label: sn.data.label,
+            pluginName: 'Pipeline Input',
+            category: 'Flow',
+            params: { ...sn.data.params },
+            inputs: START_SCHEMA.inputs,
+            outputs: START_SCHEMA.outputs,
+            parameters: START_SCHEMA.parameters,
+            status: 'IDLE',
+            schema: START_SCHEMA,
+            nodeKind: 'start',
+          },
+        });
+      } else if (sn.id === END_NODE_ID) {
+        restoredNodes.push({
+          id: END_NODE_ID,
+          type: 'end',
+          position: { ...sn.position },
+          data: {
+            label: sn.data.label,
+            pluginName: 'Pipeline Output',
+            category: 'Flow',
+            params: { ...sn.data.params },
+            inputs: END_SCHEMA.inputs,
+            outputs: END_SCHEMA.outputs,
+            parameters: END_SCHEMA.parameters,
+            status: 'IDLE',
+            schema: END_SCHEMA,
+            nodeKind: 'end',
+          },
+        });
+      } else {
+        const plugin = pluginSchemas.find((s) => s.name === sn.data.pluginName);
+        if (!plugin) continue;
+        restoredNodes.push({
+          id: sn.id,
+          type: sn.type,
+          position: { ...sn.position },
+          data: {
+            label: sn.data.label,
+            pluginName: sn.data.pluginName,
+            category: sn.data.category,
+            params: { ...sn.data.params },
+            inputs: plugin.inputs,
+            outputs: plugin.outputs,
+            parameters: plugin.parameters,
+            status: 'IDLE',
+            schema: plugin,
+            nodeKind: sn.data.nodeKind ?? 'process',
+          },
+        });
+      }
+    }
+
+    nodeCounter = maxCounter;
+
+    const restoredEdges: Edge[] = snapshot.edges.map((se) => ({
+      id: se.id,
+      source: se.source,
+      target: se.target,
+      sourceHandle: se.sourceHandle ?? undefined,
+      targetHandle: se.targetHandle ?? undefined,
+      type: se.type ?? 'custom',
+    }));
+
+    const fileCategory =
+      (restoredNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null;
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      restoredNodes,
+      restoredEdges,
+      fileCategory,
+    );
+
+    set({
+      nodes: restoredNodes,
+      edges: restoredEdges,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      nodeStatuses: {},
+      nodeErrors: {},
+      selectedOutputPreview: null,
+      connectionDrag: null,
+      blockedNodeIds,
+      noDataEdgeIds,
+      runnableNodeIds,
     });
   },
 }));

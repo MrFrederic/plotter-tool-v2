@@ -1,0 +1,285 @@
+/* ── Pipeline Tab Bar ──────────────────────────────────────────── */
+
+.pipeline-tab-bar {
+  grid-area: tabbar;
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-mid);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  user-select: none;
+  position: relative;
+  z-index: 20;
+}
+
+/* ── Scrollable tab row ───────────────────────────────────────── */
+
+.pipeline-tab-bar__tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.pipeline-tab-bar__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Individual tab ───────────────────────────────────────────── */
+
+.pipeline-tab-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  min-width: 80px;
+  max-width: 200px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-ui),
+    background var(--duration-fast) var(--easing-ui),
+    border-color var(--duration-fast) var(--easing-ui);
+  white-space: nowrap;
+  position: relative;
+}
+
+.pipeline-tab-bar__tab:hover {
+  color: var(--text-primary);
+  background: rgba(232, 150, 10, 0.04);
+}
+
+.pipeline-tab-bar__tab--active {
+  color: var(--accent-amber);
+  border-bottom-color: var(--accent-amber);
+  background: rgba(232, 150, 10, 0.06);
+  text-shadow: 0 0 8px var(--accent-amber-glow);
+}
+
+.pipeline-tab-bar__tab--active:hover {
+  background: rgba(232, 150, 10, 0.08);
+}
+
+/* ── Tab name ─────────────────────────────────────────────────── */
+
+.pipeline-tab-bar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Inline rename input ──────────────────────────────────────── */
+
+.pipeline-tab-bar__rename-input {
+  width: 120px;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--bg-inset);
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  outline: none;
+  box-shadow: 0 0 4px var(--border-glow);
+}
+
+/* ── Close button ─────────────────────────────────────────────── */
+
+.pipeline-tab-bar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 2px;
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) var(--easing-ui),
+    color var(--duration-fast) var(--easing-ui),
+    background var(--duration-fast) var(--easing-ui);
+  flex-shrink: 0;
+}
+
+.pipeline-tab-bar__tab:hover .pipeline-tab-bar__close {
+  opacity: 1;
+}
+
+.pipeline-tab-bar__close:hover {
+  color: var(--danger);
+  background: rgba(204, 34, 68, 0.15);
+}
+
+/* ── Confirm close state ──────────────────────────────────────── */
+
+.pipeline-tab-bar__confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.pipeline-tab-bar__confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-ui),
+    border-color var(--duration-fast) var(--easing-ui),
+    background var(--duration-fast) var(--easing-ui);
+}
+
+.pipeline-tab-bar__confirm-btn--yes {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.pipeline-tab-bar__confirm-btn--yes:hover {
+  background: rgba(204, 34, 68, 0.2);
+}
+
+.pipeline-tab-bar__confirm-btn--no {
+  color: var(--text-secondary);
+}
+
+.pipeline-tab-bar__confirm-btn--no:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+/* ── New tab button ───────────────────────────────────────────── */
+
+.pipeline-tab-bar__new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-ui),
+    background var(--duration-fast) var(--easing-ui);
+}
+
+.pipeline-tab-bar__new:hover {
+  color: var(--accent-amber);
+  background: rgba(232, 150, 10, 0.06);
+}
+
+/* ── Right-side utility area ──────────────────────────────────── */
+
+.pipeline-tab-bar__utils {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-color);
+}
+
+/* ── Utility buttons (export / import) ────────────────────────── */
+
+.pipeline-tab-bar__util-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-ui),
+    border-color var(--duration-fast) var(--easing-ui),
+    box-shadow var(--duration-fast) var(--easing-ui);
+}
+
+.pipeline-tab-bar__util-btn:hover {
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 4px var(--accent-amber-glow);
+}
+
+/* ── Export dropdown ──────────────────────────────────────────── */
+
+.pipeline-tab-bar__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 140px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-mid);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  padding: 2px 0;
+}
+
+.pipeline-tab-bar__dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--easing-ui),
+    background var(--duration-fast) var(--easing-ui);
+}
+
+.pipeline-tab-bar__dropdown-item:hover {
+  color: var(--accent-amber);
+  background: rgba(232, 150, 10, 0.08);
+}

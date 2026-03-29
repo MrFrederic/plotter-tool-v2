@@ -1,9 +1,10 @@
 .app-layout {
   display: grid;
   grid-template-columns: 250px 1fr auto;
-  grid-template-rows: 1fr 180px;
+  grid-template-rows: auto 1fr 180px;
   grid-template-areas:
-    'sidebar canvas config'
+    'tabbar   tabbar  tabbar'
+    'sidebar  canvas  config'
     'telemetry telemetry telemetry';
   height: 100vh;
   width: 100vw;
@@ -14,8 +15,13 @@
 .app-layout--no-config {
   grid-template-columns: 250px 1fr;
   grid-template-areas:
-    'sidebar canvas'
+    'tabbar   tabbar'
+    'sidebar  canvas'
     'telemetry telemetry';
+}
+
+.app-layout__tabbar {
+  grid-area: tabbar;
 }
 
 .app-layout__sidebar {

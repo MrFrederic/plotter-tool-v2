@@ -16,6 +16,8 @@ interface PipelineState {
   setExecuting: (executing: boolean) => void;
   addTelemetryMessage: (msg: TelemetryMessage) => void;
   clearTelemetry: () => void;
+  setPipelineName: (name: string) => void;
+  newSession: () => void;
 }
 
 const usePipelineStore = create<PipelineState>((set, get) => ({
@@ -35,6 +37,14 @@ const usePipelineStore = create<PipelineState>((set, get) => ({
 
   clearTelemetry: () => {
     set({ telemetryLog: [] });
+  },
+
+  setPipelineName: (name) => {
+    set({ pipelineName: name });
+  },
+
+  newSession: () => {
+    set({ sessionId: generateSessionId() });
   },
 }));
 
