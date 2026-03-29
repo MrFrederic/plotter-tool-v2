@@ -6,12 +6,19 @@ import MarkdownContent from '../common/MarkdownContent';
 
 export default function NodeInventory() {
   const pluginSchemas = useFlowStore((s) => s.pluginSchemas);
+  const pluginLoadError = useFlowStore((s) => s.pluginLoadError);
   const loadPluginSchemas = useFlowStore((s) => s.loadPluginSchemas);
+  const clearPluginError = useFlowStore((s) => s.clearPluginError);
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
     loadPluginSchemas();
   }, [loadPluginSchemas]);
+
+  const handleReload = async () => {
+    clearPluginError();
+    await loadPluginSchemas();
+  };
 
   const categories = pluginSchemas.reduce<Record<string, PluginSchema[]>>((acc, p) => {
     (acc[p.category] ??= []).push(p);
@@ -54,12 +61,26 @@ export default function NodeInventory() {
       </div>
 
       <div className="node-inventory__list">
-        {Object.keys(filtered).length === 0 && (
+        {pluginLoadError && (
+          <div className="node-inventory__error">
+            <div className="node-inventory__error-message">
+              ⚠ {pluginLoadError}
+            </div>
+            <button
+              type="button"
+              className="node-inventory__error-button"
+              onClick={handleReload}
+            >
+              Reload
+            </button>
+          </div>
+        )}
+        {!pluginLoadError && Object.keys(filtered).length === 0 && (
           <div className="node-inventory__empty">
             No modules found
           </div>
         )}
-        {Object.entries(filtered).map(([category, items]) => (
+        {!pluginLoadError && Object.entries(filtered).map(([category, items]) => (
           <div key={category} className="node-inventory__category">
             <div className="node-inventory__category-header">
               ▸ {category.toUpperCase()}

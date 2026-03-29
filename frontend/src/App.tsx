@@ -29,9 +29,13 @@ export default function App() {
   const wsRef = useWebSocketBridge(sessionId);
   usePipelineSync(wsRef);
 
-  // Initialize pipeline manager on mount
+  // Initialize pipeline manager on mount — must await plugin schemas first so
+  // loadSnapshot can resolve custom node types (otherwise they are silently
+  // skipped and the restored pipeline only contains start/end nodes).
   useEffect(() => {
-    usePipelineManager.getState().init();
+    useFlowStore.getState().loadPluginSchemas().then(() => {
+      usePipelineManager.getState().init();
+    });
   }, []);
 
   // Debounced auto-save: persist pipeline when flow store changes

@@ -164,6 +164,7 @@ interface FlowState {
   nodeStatuses: Record<string, NodeStatus>;
   nodeErrors: Record<string, string>;
   pluginSchemas: PluginSchema[];
+  pluginLoadError: string | null;
   uploadedFile: UploadedFile | null;
   selectedOutputPreview: OutputPreviewSelection | null;
   connectionDrag: ConnectionDragState | null;
@@ -183,6 +184,7 @@ interface FlowState {
   selectNode: (nodeId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
   loadPluginSchemas: () => Promise<void>;
+  clearPluginError: () => void;
   setUploadedFile: (file: UploadedFile | null) => void;
   selectOutputPreview: (selection: OutputPreviewSelection | null) => void;
   setConnectionDrag: (drag: ConnectionDragState) => void;
@@ -193,64 +195,6 @@ interface FlowState {
   getSnapshot: () => { nodes: SerializedNode[]; edges: SerializedEdge[] };
   loadSnapshot: (snapshot: { nodes: SerializedNode[]; edges: SerializedEdge[] }) => void;
 }
-
-const FALLBACK_PLUGINS: PluginSchema[] = [
-  {
-    name: 'SVG Trace',
-    category: 'Processing',
-    description: 'Convert raster image to vector paths',
-    inputs: [{ name: 'image', type: 'image' }],
-    outputs: [{ name: 'paths', type: 'path' }],
-    parameters: [
-      { name: 'threshold', type: 'number', default: 128, min: 0, max: 255, step: 1 },
-      { name: 'smoothing', type: 'number', default: 1.0, min: 0, max: 5, step: 0.1 },
-    ],
-  },
-  {
-    name: 'G-code Generator',
-    category: 'Output',
-    description: 'Generate G-code from vector paths',
-    inputs: [{ name: 'paths', type: 'path' }],
-    outputs: [{ name: 'gcode', type: 'gcode' }],
-    parameters: [
-      { name: 'feed_rate', type: 'number', default: 1000, min: 100, max: 5000, step: 50 },
-      { name: 'pen_up_height', type: 'number', default: 5, min: 1, max: 20, step: 0.5 },
-    ],
-  },
-  {
-    name: 'Threshold Filter',
-    category: 'Processing',
-    description: 'Apply binary threshold to image',
-    inputs: [{ name: 'image', type: 'image' }],
-    outputs: [{ name: 'image', type: 'image' }],
-    parameters: [
-      { name: 'value', type: 'number', default: 128, min: 0, max: 255, step: 1 },
-      { name: 'invert', type: 'boolean', default: false },
-    ],
-  },
-  {
-    name: 'Path Optimizer',
-    category: 'Processing',
-    description: 'Optimize path ordering for plotting',
-    inputs: [{ name: 'paths', type: 'path' }],
-    outputs: [{ name: 'paths', type: 'path' }],
-    parameters: [
-      { name: 'method', type: 'select', default: 'greedy', options: ['greedy', 'two-opt', 'nearest'] },
-    ],
-  },
-  {
-    name: 'Preview Render',
-    category: 'Output',
-    description: 'Render paths to preview image',
-    inputs: [{ name: 'paths', type: 'path' }],
-    outputs: [{ name: 'image', type: 'image' }],
-    parameters: [
-      { name: 'width', type: 'number', default: 800, min: 100, max: 4096, step: 1 },
-      { name: 'height', type: 'number', default: 600, min: 100, max: 4096, step: 1 },
-      { name: 'line_color', type: 'color', default: '#00f0ff' },
-    ],
-  },
-];
 
 let nodeCounter = 0;
 
@@ -264,6 +208,7 @@ const useFlowStore = create<FlowState>((set, get) => ({
   nodeStatuses: {},
   nodeErrors: {},
   pluginSchemas: [],
+  pluginLoadError: null,
   uploadedFile: null,
   selectedOutputPreview: null,
   connectionDrag: null,
@@ -276,8 +221,19 @@ const useFlowStore = create<FlowState>((set, get) => ({
     const safeChanges = (changes as NodeChange<Node<FlowNodeData>>[]).filter(
       (c) => !(c.type === 'remove' && isSpecialNode(c.id)),
     );
+    const nextNodes = applyNodeChanges(safeChanges, get().nodes);
+    // Recalculate execution state when graph structure changes
+    // This ensures runnableNodeIds is always in sync with actual node set
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      nextNodes,
+      get().edges,
+      (nextNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
     set({
-      nodes: applyNodeChanges(safeChanges, get().nodes),
+      nodes: nextNodes,
+      blockedNodeIds,
+      noDataEdgeIds,
+      runnableNodeIds,
     });
   },
 
@@ -378,9 +334,19 @@ const useFlowStore = create<FlowState>((set, get) => ({
       },
     };
 
+    const nextNodes = [...get().nodes, newNode];
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      nextNodes,
+      get().edges,
+      (nextNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
+
     set({
-      nodes: [...get().nodes, newNode],
+      nodes: nextNodes,
       nodeStatuses: { ...get().nodeStatuses, [id]: 'IDLE' },
+      blockedNodeIds,
+      noDataEdgeIds,
+      runnableNodeIds,
     });
   },
 
@@ -404,9 +370,19 @@ const useFlowStore = create<FlowState>((set, get) => ({
       },
     };
 
+    const nextNodes = [...get().nodes, newNode];
+    const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+      nextNodes,
+      get().edges,
+      (nextNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+    );
+
     set({
-      nodes: [...get().nodes, newNode],
+      nodes: nextNodes,
       nodeStatuses: { ...get().nodeStatuses, [id]: 'IDLE' },
+      blockedNodeIds,
+      noDataEdgeIds,
+      runnableNodeIds,
     });
   },
 
@@ -429,6 +405,12 @@ const useFlowStore = create<FlowState>((set, get) => ({
       );
       const selectedEdgeId = get().selectedEdgeId;
       const selectedOutputPreview = get().selectedOutputPreview;
+      // Recalculate execution state after node/edge removal
+      const { blockedNodeIds, noDataEdgeIds, runnableNodeIds } = computeGraphExecutionState(
+        remainingNodes,
+        remainingEdges,
+        (remainingNodes.find((n) => n.id === START_NODE_ID)?.data?.params?.file_category as string | undefined) || null,
+      );
       set({
         nodes: remainingNodes,
         edges: remainingEdges,
@@ -440,6 +422,9 @@ const useFlowStore = create<FlowState>((set, get) => ({
           selectedOutputPreview && selectedNodeIds.has(selectedOutputPreview.nodeId)
             ? null
             : selectedOutputPreview,
+        blockedNodeIds,
+        noDataEdgeIds,
+        runnableNodeIds,
       });
       return;
     }
@@ -503,12 +488,21 @@ const useFlowStore = create<FlowState>((set, get) => ({
     try {
       const schemas = await fetchPlugins();
       // Filter out Flow category plugins (Pipeline Input is handled by Start node)
-      set({ pluginSchemas: schemas.filter((s) => s.category !== 'Flow') });
-    } catch {
-      if (get().pluginSchemas.length === 0) {
-        set({ pluginSchemas: FALLBACK_PLUGINS });
-      }
+      set({
+        pluginSchemas: schemas.filter((s) => s.category !== 'Flow'),
+        pluginLoadError: null,
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load plugins';
+      set({
+        pluginSchemas: [],
+        pluginLoadError: errorMessage,
+      });
     }
+  },
+
+  clearPluginError: () => {
+    set({ pluginLoadError: null });
   },
 
   setUploadedFile: (file) => {

@@ -189,6 +189,47 @@
   letter-spacing: 0.5px;
 }
 
+.node-inventory__error {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px;
+  margin: 4px 8px;
+  background: rgba(255, 67, 54, 0.08);
+  border: 1px solid rgba(255, 67, 54, 0.3);
+  border-radius: 2px;
+}
+
+.node-inventory__error-message {
+  font-size: 11px;
+  color: #ff4336;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+}
+
+.node-inventory__error-button {
+  padding: 6px 10px;
+  background: rgba(255, 67, 54, 0.12);
+  border: 1px solid rgba(255, 67, 54, 0.4);
+  color: #ff4336;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  font-family: var(--font-mono);
+}
+
+.node-inventory__error-button:hover {
+  background: rgba(255, 67, 54, 0.2);
+  border-color: rgba(255, 67, 54, 0.6);
+  color: #ff5252;
+}
+
+.node-inventory__error-button:active {
+  background: rgba(255, 67, 54, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .node-inventory__item {
     transition: none;

@@ -82,7 +82,6 @@ const EMPTY_BOUNDS: PathBounds = {
 };
 
 const INTERACTION_IDLE_MS = 140;
-const TAU = Math.PI * 2;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -104,40 +103,14 @@ function isBoundsVisible(
   return !(maxScreenX < 0 || minScreenX > viewport.width || maxScreenY < 0 || minScreenY > viewport.height);
 }
 
-function normalizeAngle(angle: number): number {
-  const normalized = angle % TAU;
-  return normalized < 0 ? normalized + TAU : normalized;
-}
-
-function resolveArcAngles(segment: ArcSegment): { start: number; end: number; anticlockwise: boolean } {
-  const anticlockwise = !segment.clockwise;
-  const start = normalizeAngle(Math.atan2(
-    segment.from[1] - segment.center[1],
-    segment.from[0] - segment.center[0],
-  ));
-  const end = normalizeAngle(Math.atan2(
-    segment.to[1] - segment.center[1],
-    segment.to[0] - segment.center[0],
-  ));
-
-  const dx = segment.from[0] - segment.to[0];
-  const dy = segment.from[1] - segment.to[1];
-  if ((dx * dx + dy * dy) < 1e-18) {
-    return {
-      start,
-      end: start + (anticlockwise ? -TAU : TAU),
-      anticlockwise,
-    };
-  }
-
-  if (!anticlockwise && end <= start) {
-    return { start, end: end + TAU, anticlockwise };
-  }
-  if (anticlockwise && end >= start) {
-    return { start, end: end - TAU, anticlockwise };
-  }
-
-  return { start, end, anticlockwise };
+function arcAngles(segment: ArcSegment): { start: number; end: number; anticlockwise: boolean } {
+  const start = Math.atan2(segment.from[1] - segment.center[1], segment.from[0] - segment.center[0]);
+  const end = Math.atan2(segment.to[1] - segment.center[1], segment.to[0] - segment.center[0]);
+  return {
+    start,
+    end,
+    anticlockwise: !segment.clockwise,
+  };
 }
 
 export default function VectorViewer({ data }: VectorViewerProps) {
@@ -252,10 +225,14 @@ export default function VectorViewer({ data }: VectorViewerProps) {
           const centerX = (segment.center[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
           const centerY = (segment.center[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
           const radius = segment.radius * effectiveScale;
-          const arc = resolveArcAngles(segment);
+          const angles = arcAngles(segment);
+          const start = Math.atan2(fromY - centerY, fromX - centerX);
+          const toX = (segment.to[0] - sceneMetrics.centerX) * effectiveScale + width / 2 + cameraRef.current.panX;
+          const toY = (segment.to[1] - sceneMetrics.centerY) * effectiveScale + height / 2 + cameraRef.current.panY;
+          const end = Math.atan2(toY - centerY, toX - centerX);
 
           ctx.moveTo(fromX, fromY);
-          ctx.arc(centerX, centerY, radius, arc.start, arc.end, arc.anticlockwise);
+          ctx.arc(centerX, centerY, radius, start, end, angles.anticlockwise);
           drawnSegments += 1;
         }
 
