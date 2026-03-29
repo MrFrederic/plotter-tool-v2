@@ -1,4 +1,4 @@
-"""PathFilter plugin – splits a PATH array into pass/fail outputs based on a configurable predicate."""
+"""PathFilter plugin — routes each incoming path through a configurable predicate and dispatches it to pass or fail output channels."""
 import math
 from typing import Any
 
@@ -12,7 +12,7 @@ from app.plugin_base import (
 
 
 class PathFilter(BasePlugin):
-    """Splits an input PATH array into two outputs using a configurable filter predicate."""
+    """Splits an incoming PATH stream into authorized (pass) and rejected (fail) channels based on a single configurable predicate."""
 
     # ------------------------------------------------------------------
     # Schema
@@ -23,41 +23,24 @@ class PathFilter(BasePlugin):
         return PluginSchema(
             name="Path Filter",
             category="Processing",
-            description=(
-                "Splits an input PATH array into two outputs — paths that pass a "
-                "configurable predicate and paths that fail it. Supports multiple "
-                "filter modes including closed/open classification, minimum segment "
-                "count, minimum total length, bounding-box area, and arc presence. "
-                "Enables selective routing of path subsets through different "
-                "downstream processing branches."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="path",
                     type=PortType.PATH,
-                    description=(
-                        "The set of path objects to evaluate and split. Each "
-                        "PathObject is independently tested against the active "
-                        "filter predicate."
-                    ),
+                    description="Incoming PATH stream. Each path is evaluated independently against the active filter predicate.",
                 ),
             ],
             outputs=[
                 PortDefinition(
                     name="path_pass",
                     type=PortType.PATH,
-                    description=(
-                        "Path objects that satisfy the active filter condition. "
-                        "Swapped with path_fail when invert is enabled."
-                    ),
+                    description="Paths that satisfied the predicate. If invert is active, receives paths that normally fail.",
                 ),
                 PortDefinition(
                     name="path_fail",
                     type=PortType.PATH,
-                    description=(
-                        "Path objects that do not satisfy the active filter "
-                        "condition. Swapped with path_pass when invert is enabled."
-                    ),
+                    description="Paths that did not satisfy the predicate. If invert is active, receives paths that normally pass.",
                 ),
             ],
             parameters=[
@@ -72,27 +55,14 @@ class PathFilter(BasePlugin):
                         "bbox_area",
                         "has_arcs",
                     ],
-                    description=(
-                        "Selects which predicate function is used to evaluate each "
-                        "path. closed_open: classifies based on the path's closed "
-                        "flag. min_segments: tests whether the path has at least a "
-                        "certain number of segments. min_length: tests whether the "
-                        "total segment length meets a threshold. bbox_area: tests "
-                        "whether the axis-aligned bounding box area meets a "
-                        "threshold. has_arcs: tests whether the path contains any "
-                        "arc-type segments."
-                    ),
+                    description="Active filter protocol. Selects which property of each path is tested: closed_open, min_segments, min_length, bbox_area, or has_arcs.",
                 ),
                 ParameterDefinition(
                     name="keep_closed",
                     type="boolean",
                     default=True,
                     visible_if={"parameter": "filter_mode", "equals": "closed_open"},
-                    description=(
-                        "closed_open mode only. When true, closed paths pass and "
-                        "open paths fail. When false, open paths pass and closed "
-                        "paths fail. Ignored in all other modes."
-                    ),
+                    description="Determines which topology is authorized. True: closed paths pass. False: open paths pass. Active when filter_mode is closed_open.",
                 ),
                 ParameterDefinition(
                     name="min_segment_count",
@@ -102,11 +72,7 @@ class PathFilter(BasePlugin):
                     max=10000,
                     step=1,
                     visible_if={"parameter": "filter_mode", "equals": "min_segments"},
-                    description=(
-                        "min_segments mode only. The minimum number of segments a "
-                        "path must contain to pass. Paths with fewer segments are "
-                        "routed to path_fail. Ignored in other modes."
-                    ),
+                    description="Minimum segment count required to clear inspection. Paths below this threshold are routed to path_fail. Active when filter_mode is min_segments.",
                 ),
                 ParameterDefinition(
                     name="min_total_length",
@@ -116,11 +82,7 @@ class PathFilter(BasePlugin):
                     max=100000.0,
                     step=0.1,
                     visible_if={"parameter": "filter_mode", "equals": "min_length"},
-                    description=(
-                        "min_length mode only. The minimum total Euclidean length "
-                        "(sum of all segment lengths) for a path to pass. Ignored "
-                        "in other modes."
-                    ),
+                    description="Minimum total path length (sum of segment endpoint distances) required to pass. Active when filter_mode is min_length.",
                 ),
                 ParameterDefinition(
                     name="min_bbox_area",
@@ -130,31 +92,20 @@ class PathFilter(BasePlugin):
                     max=1000000.0,
                     step=1.0,
                     visible_if={"parameter": "filter_mode", "equals": "bbox_area"},
-                    description=(
-                        "bbox_area mode only. The minimum axis-aligned bounding "
-                        "box area (width × height) for a path to pass. Ignored in "
-                        "other modes."
-                    ),
+                    description="Minimum axis-aligned bounding-box area (width × height) required to pass. Active when filter_mode is bbox_area.",
                 ),
                 ParameterDefinition(
                     name="keep_with_arcs",
                     type="boolean",
                     default=True,
                     visible_if={"parameter": "filter_mode", "equals": "has_arcs"},
-                    description=(
-                        "has_arcs mode only. When true, paths containing at least "
-                        "one arc segment pass. When false, line-only paths pass. "
-                        "Ignored in other modes."
-                    ),
+                    description="Determines which segment topology is authorized. True: paths containing at least one arc pass. False: line-only paths pass. Active when filter_mode is has_arcs.",
                 ),
                 ParameterDefinition(
                     name="invert",
                     type="boolean",
                     default=False,
-                    description=(
-                        "When enabled, the pass and fail outputs are swapped after "
-                        "evaluation. Effectively negates the filter condition."
-                    ),
+                    description="Swaps pass and fail output channels after the predicate runs. Use to route the opposite set without changing filter thresholds.",
                 ),
             ],
         )
@@ -206,7 +157,7 @@ class PathFilter(BasePlugin):
         inputs: dict[str, Any],
         params: dict[str, Any],
     ) -> dict[str, Any]:
-        """Evaluate each path against the active filter predicate and split into pass/fail."""
+        """Route each path through the active filter predicate and dispatch to pass or fail channels."""
 
         # --- Extract input paths (missing / None → empty list) -----------
         paths: list[dict[str, Any]] = inputs.get("path") or []

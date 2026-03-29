@@ -45,7 +45,17 @@ export const END_NODE_ID = '__end__';
 const START_SCHEMA: PluginSchema = {
   name: 'Pipeline Input',
   category: 'Flow',
-  description: 'Entry point — upload a file for processing',
+  description: [
+    '# Pipeline Input',
+    '',
+    'Upload a source file and the pipeline will normalize it into the internal data formats used by downstream modules.',
+    '',
+    '## Notes',
+    '',
+    '- Populates `file_path` and `file_category` automatically.',
+    '- Exposes normalized `image`, `vector`, `gcode`, `path`, `text`, and `other` outputs.',
+    '- Access is restricted to uploaded files stored in the cache area.',
+  ].join('\n'),
   inputs: [],
   outputs: [
     { name: 'image', type: 'image' },
@@ -61,7 +71,17 @@ const START_SCHEMA: PluginSchema = {
 const END_SCHEMA: PluginSchema = {
   name: 'Pipeline Output',
   category: 'Flow',
-  description: 'End point — download the final result',
+  description: [
+    '# Pipeline Output',
+    '',
+    'Connect any final node output here to expose a downloadable artifact in the settings panel.',
+    '',
+    '## Notes',
+    '',
+    '- Accepts any supported pipeline data type.',
+    '- Waits for the upstream node to reach `DONE` or `CACHED` status.',
+    '- Downloads are generated from the cached node result.',
+  ].join('\n'),
   inputs: [
     { name: 'image', type: 'image' },
     { name: 'vector', type: 'vector' },

@@ -1,0 +1,125 @@
+.markdown-content {
+  position: relative;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.markdown-content--compact {
+  max-height: 170px;
+  overflow: hidden;
+}
+
+.markdown-content__fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 46px;
+  background: linear-gradient(180deg, rgba(11, 15, 21, 0) 0%, rgba(11, 15, 21, 0.98) 100%);
+  pointer-events: none;
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.markdown-content h1 {
+  font-size: 14px;
+}
+
+.markdown-content h2 {
+  font-size: 12px;
+  margin-top: 14px;
+  color: var(--accent-amber);
+}
+
+.markdown-content h3,
+.markdown-content h4 {
+  font-size: 11px;
+  margin-top: 12px;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre,
+.markdown-content table {
+  margin: 0 0 10px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 18px;
+}
+
+.markdown-content li + li {
+  margin-top: 3px;
+}
+
+.markdown-content code {
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.markdown-content pre {
+  overflow-x: auto;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+}
+
+.markdown-content pre code {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.markdown-content a {
+  color: var(--accent-amber);
+}
+
+.markdown-content img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 10px 0;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border-color);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-content th {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}

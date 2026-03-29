@@ -1,4 +1,4 @@
-"""PathSplitter plugin – explodes multi-segment paths into minimal standalone path objects."""
+"""PathSplitter plugin – decomposes multi-segment paths into standalone path objects for per-stroke pipeline control."""
 import math
 from typing import Any
 
@@ -15,28 +15,22 @@ _DEFAULT_META: dict[str, Any] = {"width": None, "speed": None}
 
 
 class PathSplitter(BasePlugin):
-    """Splits each input path into individual (or small-group) segment path objects."""
+    """Partitions each incoming path into smaller segment groups and routes them as independent path objects."""
 
     @classmethod
     def schema(cls) -> PluginSchema:
         return PluginSchema(
             name="Path Splitter",
             category="Processing",
-            description=(
-                "Explodes each input path object into multiple single-segment "
-                "(or small-group) path objects, effectively converting multi-segment "
-                "paths into an expanded array of minimal paths. Supports configurable "
-                "group sizing, optional closed-path preservation, and minimum-length "
-                "filtering. Useful for per-segment analysis, reordering optimisation, "
-                "or feeding individual strokes into downstream processors."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "The set of path objects to split. Each PathObject's "
-                        "segments are broken apart into standalone paths."
+                        "Incoming PATH data stream. Each path object is read, "
+                        "filtered, and decomposed into segment groups for "
+                        "downstream processing."
                     ),
                 ),
             ],
@@ -45,9 +39,10 @@ class PathSplitter(BasePlugin):
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "The expanded PATH array where each original segment "
-                        "(or group of segments) is now its own standalone "
-                        "PathObject with closed=false (unless preserved)."
+                        "Output PATH data stream. Each item is a partitioned path "
+                        "built from one or more consecutive segments. Split outputs "
+                        "are emitted as open paths (`closed=false`) unless a closed "
+                        "path is routed through intact."
                     ),
                 ),
             ],
@@ -57,11 +52,9 @@ class PathSplitter(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, path objects with closed=true are passed "
-                        "through intact without splitting. Useful when closed "
-                        "shapes must remain as single units while open paths get "
-                        "split. When disabled, all paths are split regardless of "
-                        "closed status."
+                        "Route closed paths (rectangles, circles) through the node "
+                        "intact, bypassing the split protocol. When false, closed "
+                        "and open paths are both partitioned normally."
                     ),
                 ),
                 ParameterDefinition(
@@ -69,11 +62,10 @@ class PathSplitter(BasePlugin):
                     type="boolean",
                     default=True,
                     description=(
-                        "When enabled, each new single-segment PathObject inherits "
-                        "the meta dictionary from its source segment. When disabled, "
-                        "all new segments receive default meta of {width: null, "
-                        "speed: null}. Enable to preserve per-segment metadata "
-                        "assigned by upstream plugins."
+                        "When enabled, each output segment inherits its original "
+                        "`meta` values (pen width, speed) from the source path. "
+                        "Disable to reset meta to `width=null, speed=null` so "
+                        "downstream nodes can assign fresh values."
                     ),
                 ),
                 ParameterDefinition(
@@ -84,11 +76,10 @@ class PathSplitter(BasePlugin):
                     max=1000,
                     step=1,
                     description=(
-                        "The number of consecutive segments to keep together in "
-                        "each output PathObject. A value of 1 means true per-segment "
-                        "splitting. A value of 2 groups every two consecutive "
-                        "segments. When the last group has fewer segments than "
-                        "group_size, it is emitted as-is."
+                        "Number of consecutive segments packed into each output path. "
+                        "`1` = one path per segment; `2` = pairs; and so on. "
+                        "If segments do not divide evenly, the final group contains "
+                        "the remainder."
                     ),
                 ),
                 ParameterDefinition(
@@ -99,10 +90,9 @@ class PathSplitter(BasePlugin):
                     max=100.0,
                     step=0.1,
                     description=(
-                        "The minimum Euclidean length an individual segment must "
-                        "have to be included. Segments shorter than this are "
-                        "discarded after splitting. Applied per-segment before "
-                        "grouping. Set to 0 to keep all segments."
+                        "Discard segments whose straight-line `from`→`to` distance "
+                        "falls below this threshold before grouping. "
+                        "Set `0.0` to execute no filtering and keep all segments."
                     ),
                 ),
             ],

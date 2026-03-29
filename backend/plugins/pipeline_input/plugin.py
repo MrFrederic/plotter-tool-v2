@@ -1,4 +1,4 @@
-"""PipelineInput plugin – entry point that reads an uploaded file and normalises it for the pipeline."""
+"""PipelineInput plugin – authorized entry-point node that loads an uploaded file and injects it into the pipeline data stream."""
 import json
 from pathlib import Path
 from typing import Any
@@ -130,28 +130,28 @@ class PipelineInput(BasePlugin):
         return PluginSchema(
             name="Pipeline Input",
             category="Flow",
-            description="Entry point — reads an uploaded file and normalizes it for the pipeline",
+            description="file:details.md",
             inputs=[],
             outputs=[
-                PortDefinition(name="image", type=PortType.IMAGE, description="Normalised raster image"),
-                PortDefinition(name="vector", type=PortType.VECTOR, description="Normalised SVG content"),
-                PortDefinition(name="gcode", type=PortType.GCODE, description="Normalised G-code text"),
-                PortDefinition(name="path", type=PortType.PATH, description="Normalised path data"),
-                PortDefinition(name="text", type=PortType.TEXT, description="Plain text content"),
-                PortDefinition(name="other", type=PortType.OTHER, description="Raw / fallback data"),
+                PortDefinition(name="image", type=PortType.IMAGE, description="Raster image payload (PNG/JPG) loaded and encoded for downstream IMAGE nodes."),
+                PortDefinition(name="vector", type=PortType.VECTOR, description="SVG document routed as XML text to downstream VECTOR nodes."),
+                PortDefinition(name="gcode", type=PortType.GCODE, description="G-code program text with trailing whitespace stripped per line, ready for GCODE nodes."),
+                PortDefinition(name="path", type=PortType.PATH, description="Normalized segment-based path data. Accepts both modern path objects and legacy point lists."),
+                PortDefinition(name="text", type=PortType.TEXT, description="Plain UTF-8 text, passed through to TEXT nodes without modification."),
+                PortDefinition(name="other", type=PortType.OTHER, description="Fallback channel for unrecognized categories. Returns parsed JSON if valid, otherwise decoded UTF-8 text."),
             ],
             parameters=[
                 ParameterDefinition(
                     name="file_path",
                     type="string",
                     default="",
-                    description="Server-side path to the uploaded file",
+                    description="Server-side path to the uploaded file. Must be non-empty, must exist, and must resolve inside the authorized cache upload directory. Set automatically by the upload flow — do not edit manually.",
                 ),
                 ParameterDefinition(
                     name="file_category",
                     type="string",
                     default="other",
-                    description="File category detected during upload",
+                    description="Selects the loader and output channel. Known values: `image`, `vector`, `gcode`, `path`, `text`, `other`. Unknown values route to the `other` channel.",
                 ),
             ],
         )

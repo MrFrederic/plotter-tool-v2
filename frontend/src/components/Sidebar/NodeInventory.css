@@ -72,6 +72,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
   padding: 6px 14px 6px 24px;
   cursor: grab;
   border-left: 2px solid transparent;
@@ -94,10 +95,90 @@
   color: var(--text-primary);
 }
 
+.node-inventory__item-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .node-inventory__item-ports {
   font-size: 10px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+.node-inventory__info {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+}
+
+.node-inventory__info-button {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background: rgba(15, 21, 28, 0.88);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 10px;
+  cursor: help;
+}
+
+.node-inventory__info:hover .node-inventory__info-button,
+.node-inventory__info:focus-within .node-inventory__info-button {
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+}
+
+.node-inventory__info-panel {
+  position: absolute;
+  left: 24px;
+  right: 14px;
+  top: calc(100% - 1px);
+  width: auto;
+  max-height: 320px;
+  overflow: hidden;
+  padding: 10px 12px;
+  background: rgba(11, 15, 21, 0.96);
+  border: 1px solid rgba(232, 150, 10, 0.32);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  transform: translateY(4px);
+  z-index: 20;
+}
+
+.node-inventory__info:hover .node-inventory__info-panel,
+.node-inventory__info:focus-within .node-inventory__info-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.node-inventory__info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.node-inventory__info-title {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.node-inventory__info-category {
+  color: var(--accent-amber);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .node-inventory__empty {
@@ -110,6 +191,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .node-inventory__item {
+    transition: none;
+  }
+
+  .node-inventory__info-panel {
     transition: none;
   }
 }

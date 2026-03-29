@@ -2,8 +2,12 @@ import type { PluginSchema } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+export function buildApiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
@@ -14,7 +18,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 async function requestBlob(path: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(buildApiUrl(path));
   if (!res.ok) {
     throw new Error(`API ${res.status}: ${res.statusText}`);
   }
@@ -82,7 +86,7 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append('file', file);
   formData.append('session_id', sessionId);
-  const resp = await fetch(`${API_BASE}/upload/`, {
+  const resp = await fetch(buildApiUrl('/upload/'), {
     method: 'POST',
     body: formData,
   });

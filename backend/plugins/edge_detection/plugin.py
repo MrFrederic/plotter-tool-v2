@@ -1,5 +1,6 @@
-"""Edge Detection plugin – converts raster images into PATH-format line segments
-using configurable computer-vision algorithms (Canny, Sobel, or Laplacian).
+"""Edge Detection node — processes an image data stream through a configurable
+computer-vision protocol and injects the detected boundaries into the pipeline
+as PATH-format line segments.
 """
 
 import math
@@ -19,30 +20,23 @@ from app.plugin_base import (
 
 
 class EdgeDetection(BasePlugin):
-    """Detects edges in a raster image and converts contours into PATH-format
-    line segments suitable for plotter output."""
+    """Executes an edge-detection protocol on an input image and routes the
+    resulting contours into the pipeline as PATH-format line segments."""
 
     @classmethod
     def schema(cls) -> PluginSchema:
         return PluginSchema(
             name="Edge Detection",
             category="Processing",
-            description=(
-                "Detects edges in a raster image using configurable computer-vision "
-                "algorithms (Canny, Sobel, or Laplacian) and converts the resulting "
-                "contours into PATH-format line segments. Supports pre-processing "
-                "options such as grayscale conversion and Gaussian blur, plus "
-                "post-processing controls for contour simplification and "
-                "minimum-length filtering. Designed for converting photographic or "
-                "raster artwork into plottable vector outlines."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="image",
                     type=PortType.IMAGE,
                     description=(
-                        "The source raster image (base64 PNG) to run edge detection on. "
-                        "Accepts colour or grayscale input."
+                        "Source image data stream to process. Accepts color or "
+                        "grayscale raster input (base64 PNG). Feed a photo, scan, "
+                        "or drawing into this port."
                     ),
                 ),
             ],
@@ -51,9 +45,9 @@ class EdgeDetection(BasePlugin):
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "Detected edges expressed as PATH-format line segments. Each "
-                        "contour from the image becomes one PathObject. Closed contours "
-                        "have closed: true."
+                        "Output channel carrying detected boundaries as PATH objects. "
+                        "Each contour is a separate path; closed loops are marked "
+                        "accordingly. Route this to sorting, filtering, or export nodes."
                     ),
                 ),
             ],
@@ -64,13 +58,11 @@ class EdgeDetection(BasePlugin):
                     default="canny",
                     options=["canny", "sobel", "laplacian"],
                     description=(
-                        "The edge-detection algorithm to apply. Canny produces binary "
-                        "edges using a double-threshold hysteresis approach and is best "
-                        "for clean, well-defined contours. Sobel computes gradient "
-                        "magnitude in both axes and is useful for emphasising directional "
-                        "edges. Laplacian computes the second derivative and highlights "
-                        "rapid intensity changes; it tends to produce thinner but noisier "
-                        "edges."
+                        "Selects the detection protocol to execute. `canny` is the "
+                        "recommended default — it uses two thresholds and hysteresis to "
+                        "produce clean, crisp outlines. `sobel` delivers bolder "
+                        "gradient-based edges with more texture. `laplacian` captures "
+                        "fine all-direction detail but is the most noise-sensitive."
                     ),
                 ),
                 ParameterDefinition(
@@ -82,10 +74,9 @@ class EdgeDetection(BasePlugin):
                     step=1,
                     visible_if={"parameter": "algorithm", "equals": "canny"},
                     description=(
-                        "Canny only. The lower hysteresis threshold. Pixels with gradient "
-                        "magnitude below this value are rejected. Lower values include "
-                        "more subtle edges but increase noise. Ignored when algorithm is "
-                        "not Canny."
+                        "Active when `algorithm` is `canny`. Lower hysteresis bound: "
+                        "pixels below this value are discarded unless connected to a "
+                        "strong edge. Lower = more faint lines retained, more noise."
                     ),
                 ),
                 ParameterDefinition(
@@ -97,9 +88,10 @@ class EdgeDetection(BasePlugin):
                     step=1,
                     visible_if={"parameter": "algorithm", "equals": "canny"},
                     description=(
-                        "Canny only. The upper hysteresis threshold. Pixels with gradient "
-                        "magnitude above this value are accepted as strong edges "
-                        "immediately. Ignored when algorithm is not Canny."
+                        "Active when `algorithm` is `canny`. Upper hysteresis bound: "
+                        "pixels above this value are immediately classified as strong "
+                        "edges. Raise to keep only the most defined boundaries; lower "
+                        "to capture more edge data."
                     ),
                 ),
                 ParameterDefinition(
@@ -112,9 +104,10 @@ class EdgeDetection(BasePlugin):
                         "one_of": ["sobel", "laplacian"],
                     },
                     description=(
-                        "Sobel and Laplacian. The size of the derivative kernel. Larger "
-                        "kernels smooth noise but reduce spatial precision. Ignored when "
-                        "algorithm is Canny."
+                        "Active when `algorithm` is `sobel` or `laplacian`. Sets the "
+                        "pixel neighborhood used to compute local intensity change. "
+                        "Smaller values preserve sharp detail; larger values smooth "
+                        "noise at the cost of softening fine edges."
                     ),
                 ),
                 ParameterDefinition(
@@ -125,9 +118,9 @@ class EdgeDetection(BasePlugin):
                     max=31,
                     step=2,
                     description=(
-                        "The size of the Gaussian blur kernel applied before edge "
-                        "detection. Must be odd. Larger values smooth out noise at the "
-                        "cost of edge sharpness. Set to 1 to disable blurring."
+                        "Gaussian blur applied to the image before the detection "
+                        "protocol runs (odd values only). Increase to suppress grain "
+                        "and noise; at very high values thin features may vanish entirely."
                     ),
                 ),
                 ParameterDefinition(
@@ -138,9 +131,10 @@ class EdgeDetection(BasePlugin):
                     max=10.0,
                     step=0.1,
                     description=(
-                        "The epsilon value for the Douglas-Peucker polygon approximation "
-                        "(cv2.approxPolyDP). Higher values produce fewer, straighter "
-                        "segments. Set to 0 to keep all contour points."
+                        "Douglas-Peucker tolerance applied to each contour after "
+                        "detection. `0` preserves all points; higher values reduce "
+                        "segment count and output weight. Very high values can distort "
+                        "curved shapes into rough polygons."
                     ),
                 ),
                 ParameterDefinition(
@@ -151,9 +145,10 @@ class EdgeDetection(BasePlugin):
                     max=1000,
                     step=1,
                     description=(
-                        "The minimum arc-length in pixels a contour must span to be "
-                        "included in output. Increase to filter out noise or tiny "
-                        "artefacts."
+                        "Minimum perimeter (in pixels) a contour must reach to be "
+                        "authorized for output. Raise to filter out noise artifacts and "
+                        "stray marks; set too high and small intentional features will "
+                        "also be dropped."
                     ),
                 ),
                 ParameterDefinition(
@@ -161,8 +156,9 @@ class EdgeDetection(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, the edge-detection output is bitwise-inverted "
-                        "before contour extraction. Swaps foreground and background."
+                        "Swaps black and white in the edge map before contour extraction. "
+                        "Enable when subject and background contrast is reversed from "
+                        "expected — it flips which regions the system traces as paths."
                     ),
                 ),
                 ParameterDefinition(
@@ -170,9 +166,9 @@ class EdgeDetection(BasePlugin):
                     type="boolean",
                     default=True,
                     description=(
-                        "When enabled, the input image is converted to single-channel "
-                        "grayscale before processing. If already single-channel, this is "
-                        "a no-op."
+                        "Converts the image to single-channel grayscale before the "
+                        "detection protocol executes. Recommended on for consistent "
+                        "results. Has no effect if the input is already single-channel."
                     ),
                 ),
             ],

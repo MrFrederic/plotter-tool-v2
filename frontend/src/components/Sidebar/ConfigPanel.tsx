@@ -3,6 +3,7 @@ import './ConfigPanel.css';
 import useFlowStore, { START_NODE_ID, END_NODE_ID } from '../../store/useFlowStore';
 import usePipelineStore from '../../store/usePipelineStore';
 import { clearSessionUploadCache, fetchNodeResult, uploadFile } from '../../api/rest';
+import MarkdownContent from '../common/MarkdownContent';
 import type {
   FileCategory,
   ParameterDefinition,
@@ -148,6 +149,8 @@ function isParameterVisible(
   return matchesVisibilityCondition(parameter.visible_if, parameters, params);
 }
 
+type ConfigTab = 'settings' | 'details';
+
 export default function ConfigPanel() {
   const nodes = useFlowStore((s) => s.nodes);
   const selectedNodeId = useFlowStore((s) => s.selectedNodeId);
@@ -157,8 +160,17 @@ export default function ConfigPanel() {
   const setUploadedFile = useFlowStore((s) => s.setUploadedFile);
   const sessionId = usePipelineStore((s) => s.sessionId);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  const [tabState, setTabState] = useState<{ nodeId: string | null; tab: ConfigTab }>({
+    nodeId: null,
+    tab: 'settings',
+  });
 
   if (!selectedNode) return null;
+
+  const activeTab: ConfigTab = tabState.nodeId === selectedNodeId ? tabState.tab : 'settings';
+  const selectTab = (tab: ConfigTab) => {
+    setTabState({ nodeId: selectedNodeId, tab });
+  };
 
   const isStart = selectedNodeId === START_NODE_ID;
   const isEnd = selectedNodeId === END_NODE_ID;
@@ -166,6 +178,7 @@ export default function ConfigPanel() {
   const { label, category, parameters, params, status } = selectedNode.data;
   const typedParameters = parameters as ParameterDefinition[];
   const visibleParameters = typedParameters.filter((param) => isParameterVisible(param, typedParameters, params));
+  const detailsMarkdown = selectedNode.data.schema.description?.trim() || 'No module details available.';
 
   return (
     <div className="config-panel">
@@ -199,8 +212,28 @@ export default function ConfigPanel() {
         </div>
       )}
 
-      {/* Start node: file upload */}
-      {isStart && (
+      <div className="config-panel__tabs" role="tablist" aria-label="Module panel tabs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'settings'}
+          className={`config-panel__tab ${activeTab === 'settings' ? 'config-panel__tab--active' : ''}`}
+          onClick={() => selectTab('settings')}
+        >
+          SETTINGS
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'details'}
+          className={`config-panel__tab ${activeTab === 'details' ? 'config-panel__tab--active' : ''}`}
+          onClick={() => selectTab('details')}
+        >
+          DETAILS
+        </button>
+      </div>
+
+      {activeTab === 'settings' && isStart && (
         <div className="config-panel__fields">
           <FileUploadArea
             uploadedFile={uploadedFile}
@@ -209,15 +242,13 @@ export default function ConfigPanel() {
         </div>
       )}
 
-      {/* End node: download area */}
-      {isEnd && (
+      {activeTab === 'settings' && isEnd && (
         <div className="config-panel__fields">
           <OutputDownloadArea sessionId={sessionId} />
         </div>
       )}
 
-      {/* Regular nodes: parameters */}
-      {!isStart && !isEnd && (
+      {activeTab === 'settings' && !isStart && !isEnd && (
         <div className="config-panel__fields">
           {visibleParameters.map((param) => (
             <ParameterField
@@ -236,6 +267,12 @@ export default function ConfigPanel() {
           {visibleParameters.length === 0 && (
             <div className="config-panel__empty">No configurable parameters</div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'details' && (
+        <div className="config-panel__fields config-panel__details-view">
+          <MarkdownContent markdown={detailsMarkdown} pluginName={selectedNode.data.pluginName} />
         </div>
       )}
     </div>

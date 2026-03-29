@@ -1,4 +1,4 @@
-"""PathCombine plugin – merges two PATH arrays into a single unified output."""
+"""PathCombine – convergence node that merges two PATH streams into a single sequenced output."""
 import math
 from typing import Any
 
@@ -12,47 +12,31 @@ from app.plugin_base import (
 
 
 class PathCombine(BasePlugin):
-    """Merges two PATH inputs with configurable ordering and optional deduplication."""
+    """Merges two PATH channels with configurable merge protocol and optional duplicate elimination."""
 
     @classmethod
     def schema(cls) -> PluginSchema:
         return PluginSchema(
             name="Path Combine",
             category="Processing",
-            description=(
-                "Merges two PATH arrays into a single unified PATH output. "
-                "Supports configurable ordering strategies and optional deduplication "
-                "of geometrically identical paths. Useful for combining outputs from "
-                "parallel processing branches before routing to a shared G-code "
-                "generator or preview node."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="path_a",
                     type=PortType.PATH,
-                    description=(
-                        "The first set of path objects to merge. "
-                        "Treated as the 'A' collection for ordering purposes."
-                    ),
+                    description="First PATH channel (A). Connect from one branch of your DAG.",
                 ),
                 PortDefinition(
                     name="path_b",
                     type=PortType.PATH,
-                    description=(
-                        "The second set of path objects to merge. "
-                        "Treated as the 'B' collection for ordering purposes."
-                    ),
+                    description="Second PATH channel (B). Typically routed from a parallel branch.",
                 ),
             ],
             outputs=[
                 PortDefinition(
                     name="path",
                     type=PortType.PATH,
-                    description=(
-                        "The merged PATH array containing path objects from both "
-                        "inputs, ordered and optionally deduplicated per the "
-                        "parameter settings."
-                    ),
+                    description="Merged PATH stream. Order follows merge_order; duplicates removed if enabled. Route to preview, further processing, or G-code conversion.",
                 ),
             ],
             parameters=[
@@ -62,11 +46,10 @@ class PathCombine(BasePlugin):
                     default="a_then_b",
                     options=["a_then_b", "b_then_a", "interleave"],
                     description=(
-                        "Controls the order in which path objects from the two "
-                        "inputs appear in the output. a_then_b: all of A's paths "
-                        "followed by all of B's. b_then_a: all of B's then A's. "
-                        "interleave: alternates one from A, one from B; once one "
-                        "is exhausted, the remainder of the other is appended."
+                        "Output sequence protocol. a_then_b: all A then all B. "
+                        "b_then_a: all B then all A. interleave: alternates A and B "
+                        "until one side is exhausted, then appends leftovers "
+                        "(e.g. A=[A1,A2,A3] + B=[B1..B5] → A1,B1,A2,B2,A3,B3,B4,B5)."
                     ),
                 ),
                 ParameterDefinition(
@@ -74,11 +57,9 @@ class PathCombine(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, geometrically duplicate path objects are "
-                        "removed from the merged result. Two paths are considered "
-                        "duplicates if every corresponding segment's from and to "
-                        "points are within duplicate_tolerance distance. Only the "
-                        "first occurrence is kept."
+                        "Purge geometrically identical paths after merge. "
+                        "Paths with the same points in the same segment order are "
+                        "treated as duplicates; only the first occurrence is retained."
                     ),
                 ),
                 ParameterDefinition(
@@ -90,11 +71,9 @@ class PathCombine(BasePlugin):
                     step=0.01,
                     visible_if={"parameter": "remove_duplicates", "equals": True},
                     description=(
-                        "The maximum Euclidean distance between corresponding "
-                        "segment endpoints for two segments to be considered "
-                        "identical. Only relevant when remove_duplicates is "
-                        "enabled. Increase if coordinate rounding causes "
-                        "near-but-not-exact matches."
+                        "Endpoint proximity threshold for duplicate detection. "
+                        "Lower values are stricter; raise if obvious duplicates "
+                        "survive the filter."
                     ),
                 ),
             ],

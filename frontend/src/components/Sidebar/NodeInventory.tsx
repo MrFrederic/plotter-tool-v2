@@ -2,6 +2,7 @@ import { useEffect, useState, type DragEvent } from 'react';
 import './NodeInventory.css';
 import type { PluginSchema } from '../../types';
 import useFlowStore from '../../store/useFlowStore';
+import MarkdownContent from '../common/MarkdownContent';
 
 export default function NodeInventory() {
   const pluginSchemas = useFlowStore((s) => s.pluginSchemas);
@@ -69,12 +70,36 @@ export default function NodeInventory() {
                 className="node-inventory__item"
                 draggable
                 onDragStart={(e) => onDragStart(e, plugin)}
-                title={plugin.description}
               >
                 <span className="node-inventory__item-name">{plugin.name}</span>
-                <span className="node-inventory__item-ports">
-                  {plugin.inputs.length}→{plugin.outputs.length}
-                </span>
+                <div className="node-inventory__item-meta">
+                  <span className="node-inventory__item-ports">
+                    {plugin.inputs.length}→{plugin.outputs.length}
+                  </span>
+                  <div className="node-inventory__info">
+                    <button
+                      type="button"
+                      className="node-inventory__info-button"
+                      aria-label={`Show module details for ${plugin.name}`}
+                      draggable={false}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.preventDefault()}
+                    >
+                      i
+                    </button>
+                    <div className="node-inventory__info-panel" role="tooltip">
+                      <div className="node-inventory__info-header">
+                        <span className="node-inventory__info-title">{plugin.name}</span>
+                        <span className="node-inventory__info-category">{plugin.category}</span>
+                      </div>
+                      <MarkdownContent
+                        markdown={plugin.description}
+                        pluginName={plugin.name}
+                        compact
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

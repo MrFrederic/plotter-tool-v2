@@ -23,7 +23,7 @@ class MyPlugin(BasePlugin):
         return PluginSchema(
             name="MyPlugin",
             category="Processing",
-            description="Short description of what this plugin does.",
+            description="Short markdown description shown in Details.",
             inputs=[
                 PortDefinition(name="image", type=PortType.IMAGE, description="Input image"),
             ],
@@ -50,6 +50,50 @@ class MyPlugin(BasePlugin):
         return {"image": result_data}
 
 Plugin = MyPlugin
+```
+
+## Description rule (single source)
+
+Plugin descriptions must be defined in exactly one way using `PluginSchema.description`:
+
+1. **Inline markdown text**
+2. **A file reference** in the form `file:details.md`
+
+Do not define both. The backend resolves `file:` references relative to the plugin folder and returns the markdown file content as the final plugin description.
+
+### Inline markdown example
+
+```python
+PluginSchema(
+    name="MyPlugin",
+    category="Processing",
+    description="## My Plugin\n\nConverts input into output.",
+    inputs=[...],
+    outputs=[...],
+    parameters=[...],
+)
+```
+
+### External markdown file example
+
+```python
+PluginSchema(
+    name="MyPlugin",
+    category="Processing",
+    description="file:details.md",
+    inputs=[...],
+    outputs=[...],
+    parameters=[...],
+)
+```
+
+```text
+backend/plugins/my_plugin/
+├── __init__.py
+├── plugin.py
+├── details.md
+└── assets/
+    └── overview.svg
 ```
 
 ## Data Type Conventions
@@ -199,6 +243,9 @@ def compute_hash(cls, inputs_hash: dict[str, str], params: dict[str, Any]) -> st
 | `PathPassthrough` | Testing | paths | paths | Pass path data through |
 | `TextPassthrough` | Testing | text | text | Pass text data through |
 | `OtherPassthrough` | Testing | data | data | Pass arbitrary data through |
+| `PathToGCode` | Processing | path | gcode | Converts canonical PATH objects into configurable G-code with travel, feedrate, arc, and tool sequencing controls |
+| `GCodeToPath` | Processing | gcode | path | Parses G0/G1/G2/G3 motion into canonical PATH objects, splitting on rapid travel moves |
+| `SVG2GCode` | Processing | vector | gcode, path | Converts SVG to G-code with svg2gcode settings and emits derived path segments |
 
 ## Testing Plugins
 

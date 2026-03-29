@@ -1,8 +1,8 @@
-"""VectorDecompose plugin – decomposes an SVG document into constituent element
-types, routing each category to a dedicated output port.
+"""Vector Decompose plugin — parses an SVG data stream and dispatches its elements
+to dedicated output ports by element class.
 
-Path elements are converted to the internal PATH format; text, lines, shapes, and
-embedded raster images are output as separate VECTOR or IMAGE ports.
+Paths are converted to the internal PATH format; text, lines, shapes, and embedded
+raster images are routed to separate VECTOR or IMAGE channels.
 """
 
 from typing import Any
@@ -779,29 +779,23 @@ def _apply_transform_to_element(elem: ET.Element, mat: np.ndarray) -> None:
 # ======================================================================
 
 class VectorDecompose(BasePlugin):
-    """Decomposes an SVG document into its constituent element types, routing
-    each category to a dedicated output port."""
+    """Parses an SVG document and dispatches element classes to dedicated output
+    ports — paths, text, lines, shapes, and embedded raster."""
 
     @classmethod
     def schema(cls) -> PluginSchema:
         return PluginSchema(
             name="Vector Decompose",
             category="Processing",
-            description=(
-                "Decomposes an SVG document into its constituent element types, "
-                "routing each category to a dedicated output port. Path elements "
-                "are converted to the internal PATH format; text, lines, shapes, "
-                "and embedded raster images are output as separate VECTOR or IMAGE "
-                "ports. Enables selective downstream processing of different SVG "
-                "content types within a single pipeline."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="vector",
                     type=PortType.VECTOR,
                     description=(
-                        "A complete SVG XML string to decompose. Must be valid, "
-                        "well-formed SVG."
+                        "Inbound SVG data stream (raw SVG XML). Supply a complete, "
+                        "well-formed SVG document so all element classes can be "
+                        "parsed and dispatched correctly."
                     ),
                 ),
             ],
@@ -810,44 +804,45 @@ class VectorDecompose(BasePlugin):
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "All <path> elements extracted and converted to internal "
-                        "PATH segments. Each SVG <path> becomes one PathObject."
+                        "PATH channel: geometry converted from SVG <path> elements. "
+                        "Each item carries a closed flag and line segments with "
+                        "from/to coordinates, ready for plotter-oriented downstream nodes."
                     ),
                 ),
                 PortDefinition(
                     name="text_vector",
                     type=PortType.VECTOR,
                     description=(
-                        "An SVG fragment containing only <text> and <tspan> elements, "
-                        "preserving the original viewBox and XML namespace. Empty SVG "
-                        "if no text elements exist."
+                        "VECTOR channel: SVG fragment containing only <text> and "
+                        "<tspan> elements, with canvas context preserved. Returns "
+                        "an empty SVG shell if no text elements are present."
                     ),
                 ),
                 PortDefinition(
                     name="lines_vector",
                     type=PortType.VECTOR,
                     description=(
-                        "An SVG fragment containing only <line> and <polyline> elements, "
-                        "preserving the original viewBox and XML namespace. Empty SVG "
-                        "if no such elements exist."
+                        "VECTOR channel: SVG fragment containing only <line> and "
+                        "<polyline> elements. Remains SVG XML rather than PATH objects, "
+                        "enabling element-class-specific branch processing."
                     ),
                 ),
                 PortDefinition(
                     name="shapes_vector",
                     type=PortType.VECTOR,
                     description=(
-                        "An SVG fragment containing only <rect>, <circle>, <ellipse>, "
-                        "and <polygon> elements, preserving the original viewBox and "
-                        "XML namespace. Empty SVG if no shape elements exist."
+                        "VECTOR channel: SVG fragment containing <rect>, <circle>, "
+                        "<ellipse>, and <polygon> elements. Output is SVG XML, "
+                        "preserving shape semantics for downstream vector operations."
                     ),
                 ),
                 PortDefinition(
                     name="raster_image",
                     type=PortType.IMAGE,
                     description=(
-                        "The first embedded <image> element found in the SVG, decoded "
-                        "to a base64 PNG. If no embedded image exists, output a "
-                        "transparent 1x1 PNG."
+                        "IMAGE channel (base64 PNG): decoded from the first embedded "
+                        "<image> element in the document. Only the first raster element "
+                        "is extracted. Returns a transparent 1x1 PNG if none is found."
                     ),
                 ),
             ],
@@ -857,11 +852,10 @@ class VectorDecompose(BasePlugin):
                     type="boolean",
                     default=True,
                     description=(
-                        "When enabled, all parent-level transform attributes are "
-                        "applied to child element coordinates before extraction. "
-                        "Ensures each output fragment reflects the element's actual "
-                        "rendered position. Disable to preserve raw SVG coordinate "
-                        "structure."
+                        "Bakes SVG transforms (translate/scale/rotate/matrix) into "
+                        "element coordinates before dispatch. true = coordinates match "
+                        "screen placement. false = original coord space with "
+                        "transform attributes preserved."
                     ),
                 ),
                 ParameterDefinition(
@@ -869,9 +863,9 @@ class VectorDecompose(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, elements with display:none, visibility:hidden, "
-                        "or opacity:0 are included in the output. By default these are "
-                        "skipped."
+                        "Include elements hidden by display:none, visibility:hidden, "
+                        "or opacity:0. Default false routes only visible content; "
+                        "set true to inspect or process concealed elements."
                     ),
                 ),
                 ParameterDefinition(
@@ -882,9 +876,9 @@ class VectorDecompose(BasePlugin):
                     max=5.0,
                     step=0.1,
                     description=(
-                        "Simplification tolerance applied to PATH output segments "
-                        "using Douglas-Peucker approximation. Set to 0 to preserve "
-                        "full path fidelity. Only affects the path output port."
+                        "Douglas-Peucker tolerance applied to the path output channel. "
+                        "0.0 preserves full detail. Higher values (up to 5.0) reduce "
+                        "point count for cleaner paths at the cost of geometric precision."
                     ),
                 ),
                 ParameterDefinition(
@@ -895,9 +889,9 @@ class VectorDecompose(BasePlugin):
                     max=10000,
                     step=100,
                     description=(
-                        "Fallback viewBox dimension if the input SVG lacks a viewBox "
-                        "attribute. Only applied when the source SVG has no viewBox, "
-                        "width, or height attributes."
+                        "Fallback canvas size when the input SVG lacks a usable viewBox "
+                        "and has no width/height attributes. Range 100–10000; affects "
+                        "the default coordinate space scale for all output channels."
                     ),
                 ),
             ],

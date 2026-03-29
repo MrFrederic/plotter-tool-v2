@@ -1,6 +1,7 @@
-"""VectorToPath plugin – converts all geometric content in an SVG document
-into internal PATH-format line segments, flattening curves, arcs, and
-optionally text outlines into plotter-ready polylines.
+"""Vector to Path — pipeline node that interfaces with an SVG document and
+compiles all geometric content into the internal PATH format. Curves, arcs,
+and optionally text are flattened into plotter-ready segments in a single
+unified output stream.
 """
 
 import logging
@@ -954,9 +955,9 @@ def _get_segment_meta(elem: ET.Element) -> dict[str, float | None]:
 # ===========================================================================
 
 class VectorToPath(BasePlugin):
-    """Converts all geometric content in an SVG document into PATH-format
-    line segments, flattening curves, arcs, and optionally text outlines
-    into plotter-ready polylines."""
+    """Parses an SVG document and transforms all geometric elements into the
+    pipeline's internal PATH format. Normalizes curves, arcs, and optionally
+    text into a single unified plotter-ready output."""
 
     # ------------------------------------------------------------------
     # Schema
@@ -967,21 +968,14 @@ class VectorToPath(BasePlugin):
         return PluginSchema(
             name="Vector to Path",
             category="Processing",
-            description=(
-                "Converts all geometric content in an SVG document into internal "
-                "PATH-format line segments, flattening curves, arcs, and optionally "
-                "text outlines into plotter-ready polylines. Unlike Vector Decompose, "
-                "this plugin produces a single unified PATH output rather than "
-                "splitting by element type. Ideal as the final conversion step before "
-                "G-code generation or path-level optimisation."
-            ),
+            description="file:details.md",
             inputs=[
                 PortDefinition(
                     name="vector",
                     type=PortType.VECTOR,
                     description=(
-                        "A complete SVG XML string. All geometric elements within "
-                        "will be converted to PATH segments."
+                        "SVG document as XML text. The source geometry to parse and convert — "
+                        "paths, lines, shapes, and optionally text elements."
                     ),
                 ),
             ],
@@ -990,10 +984,9 @@ class VectorToPath(BasePlugin):
                     name="path",
                     type=PortType.PATH,
                     description=(
-                        "All SVG geometry converted to PATH segments. Circular arcs "
-                        "are preserved as arc segments when representable, while "
-                        "other curves are flattened to polylines. Each discrete "
-                        "SVG shape or sub-path becomes its own PathObject."
+                        "Compiled PATH output. All SVG geometry is flattened into this single "
+                        "stream — curves approximated as segments, arcs preserved where possible. "
+                        "Each shape and sub-path is output as a discrete path object."
                     ),
                 ),
             ],
@@ -1003,11 +996,9 @@ class VectorToPath(BasePlugin):
                     type="boolean",
                     default=True,
                     description=(
-                        "When enabled, all transform attributes on elements and "
-                        "ancestor <g> groups are applied to point coordinates before "
-                        "conversion. Disable only if you intend to handle transforms "
-                        "separately. Disabling may result in incorrect geometry if "
-                        "the SVG uses nested transforms."
+                        "Bakes SVG transforms (translate, rotate, scale, matrix) directly into "
+                        "output coordinates. Keep enabled — disabling it will leave geometry in "
+                        "local coordinate space, causing shifted or rotated output."
                     ),
                 ),
                 ParameterDefinition(
@@ -1018,9 +1009,9 @@ class VectorToPath(BasePlugin):
                     max=5.0,
                     step=0.001,
                     description=(
-                        "The maximum allowed deviation (in SVG user units) between "
-                        "the original Bézier curve and the approximating polyline. "
-                        "Lower values produce more segments and higher fidelity."
+                        "Approximation tolerance for Bézier curve flattening. Lower values "
+                        "produce more accurate curves with more segments; higher values simplify. "
+                        "Start at `0.5` and decrease only if curves appear faceted."
                     ),
                 ),
                 ParameterDefinition(
@@ -1031,9 +1022,9 @@ class VectorToPath(BasePlugin):
                     max=128,
                     step=1,
                     description=(
-                        "The number of line segments used to approximate each SVG "
-                        "arc command or circle/ellipse element. Higher values yield "
-                        "smoother curves."
+                        "Segment count used to approximate circles, ellipses, and non-preserved arcs. "
+                        "More segments = smoother geometry, heavier output. "
+                        "Increase when circular shapes appear polygonal in preview."
                     ),
                 ),
                 ParameterDefinition(
@@ -1041,9 +1032,8 @@ class VectorToPath(BasePlugin):
                     type="boolean",
                     default=True,
                     description=(
-                        "When enabled, attempts to convert <text> elements to path "
-                        "outlines using basic rectangular glyph approximation. When "
-                        "disabled, text elements are silently skipped."
+                        "Converts `<text>` elements into PATH geometry using approximate outlines. "
+                        "Disable if labels or annotations in the file should not be plotted."
                     ),
                 ),
                 ParameterDefinition(
@@ -1051,9 +1041,8 @@ class VectorToPath(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, elements with display:none, visibility:hidden, "
-                        "or opacity:0 are processed. By default, hidden elements are "
-                        "skipped."
+                        "Processes elements hidden by `display:none`, `visibility:hidden`, or `opacity:0`. "
+                        "Keep disabled for production output; enable only to diagnose missing geometry in source files."
                     ),
                 ),
                 ParameterDefinition(
@@ -1061,10 +1050,9 @@ class VectorToPath(BasePlugin):
                     type="boolean",
                     default=False,
                     description=(
-                        "When enabled, stroked shapes are converted into outlined "
-                        "path geometry representing the stroke's extent using "
-                        "Shapely's buffer(). Enable when physical stroke width "
-                        "matters for plotter output."
+                        "Expands stroke width into closed outline geometry. "
+                        "Enable when physical pen or cutter width should be represented as real path geometry — "
+                        "engraving boundaries, stroke-fill effects, or width-accurate cuts."
                     ),
                 ),
                 ParameterDefinition(
@@ -1075,9 +1063,9 @@ class VectorToPath(BasePlugin):
                     max=100.0,
                     step=0.1,
                     description=(
-                        "The minimum Euclidean length for an individual line segment "
-                        "to be kept. Segments shorter than this are discarded. Set "
-                        "to 0 to keep all segments."
+                        "Filters out segments shorter than this threshold after conversion. "
+                        "`0.0` keeps all segments. Raise to `0.1`–`0.5` to remove noise from "
+                        "complex or imported SVG files."
                     ),
                 ),
             ],
