@@ -6,6 +6,7 @@ import asyncio
 import math
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -216,7 +217,6 @@ class VPypeProcessor(BasePlugin):
         if binary is None:
             raise RuntimeError("vpype executable not found in PATH")
 
-        cmd = self._build_command(binary, params)
         timeout_seconds = _coerce_float(params, "timeout_seconds", 20, minimum=1, maximum=300)
 
         with tempfile.TemporaryDirectory(prefix="vpype_processor_") as tmp_dir:
@@ -225,7 +225,7 @@ class VPypeProcessor(BasePlugin):
             output_path = tmp_path / "output.svg"
             input_path.write_text(svg, encoding="utf-8")
 
-            full_cmd = [*cmd[:2], str(input_path), *cmd[2:], str(output_path)]
+            full_cmd = self._build_command(binary, input_path, output_path, params)
 
             process = await asyncio.create_subprocess_exec(
                 *full_cmd,
@@ -253,13 +253,22 @@ class VPypeProcessor(BasePlugin):
                 raise RuntimeError("vpype did not produce output SVG")
 
             out_svg = output_path.read_text(encoding="utf-8")
-            if not out_svg.strip().startswith("<"):
-                raise RuntimeError("vpype output is not a valid SVG document")
+            try:
+                root = ET.fromstring(out_svg)
+            except ET.ParseError as exc:
+                raise RuntimeError(f"vpype produced invalid XML output: {exc}") from exc
+            if not root.tag.lower().endswith("svg"):
+                raise RuntimeError("vpype output root element is not <svg>")
             return {"vector": out_svg}
 
     @staticmethod
-    def _build_command(binary: str, params: dict[str, Any]) -> list[str]:
-        command: list[str] = [binary, "read"]
+    def _build_command(
+        binary: str,
+        input_path: Path,
+        output_path: Path,
+        params: dict[str, Any],
+    ) -> list[str]:
+        command: list[str] = [binary, "read", str(input_path)]
 
         enable_linemerge = _coerce_bool(params, "enable_linemerge", True)
         if enable_linemerge:
@@ -340,7 +349,7 @@ class VPypeProcessor(BasePlugin):
         elif layout_mode == "tight":
             command.extend(["layout", "tight"])
 
-        command.append("write")
+        command.extend(["write", str(output_path)])
         return command
 
 
